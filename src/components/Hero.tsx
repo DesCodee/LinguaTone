@@ -9,9 +9,9 @@ const languages = [
 ]
 
 const stats = [
-  { num: '25,000+', key: 'statsTests' },
-  { num: '4.8', key: 'statsRating' },
-  { num: '2,200+', key: 'statsItems' },
+  { num: '150+', key: 'statsTests' },
+  { num: 'beta', key: 'statsRating' },
+  { num: '50+', key: 'statsItems' },
 ]
 
 const floatingElements = [
