@@ -89,7 +89,7 @@ function drawChart(canvas: HTMLCanvasElement, sessions: { date: string; scores: 
 
 const achievements = [
   { id: 'first', name: 'First Step', desc: 'Complete your first session', icon: Mic, check: (p: any) => (p?.totalPhrases || 0) >= 1 },
-  { id: 'week', name: '7-Day Streak', desc: 'Practice 7 days in a row', icon: Flame, check: (p: any, s: number) => s >= 7 },
+  { id: 'week', name: '7-Day Streak', desc: 'Practice 7 days in a row', icon: Flame, check: (_p: any, s: number) => s >= 7 },
   { id: 'explorer', name: 'Polyglot', desc: 'Practice 3 languages', icon: Star, check: (p: any) => new Set(p?.sessions?.map((s: any) => s.lang)).size >= 3 },
   { id: 'master', name: 'Tone Master', desc: 'Score 90+ on tones', icon: Target, check: (p: any) => p?.sessions?.some((s: any) => s.scores.tones >= 90) },
   { id: 'hundred', name: 'Century', desc: '100 phrases completed', icon: TrendingUp, check: (p: any) => (p?.totalPhrases || 0) >= 100 },
