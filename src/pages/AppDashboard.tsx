@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { useStreak } from '../hooks/useStreak'
 import { useProgress } from '../hooks/useProgress'
-import { addSession } from '../lib/storage'
+
 
 const samplePhrases = [
   { text: '你好，我想学中文', pinyin: 'nǐ hǎo wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh' },
