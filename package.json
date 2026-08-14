@@ -1,17 +1,32 @@
 {
-  "devDependencies": {
-    "@types/node": "^26.2.0",
-    "autoprefixer": "^10.5.4",
-    "postcss": "^8.5.26",
-    "tailwindcss": "^4.3.3"
+  "name": "linguatone",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
-    "framer-motion": "^13.1.0",
-    "i18next": "^26.3.6",
-    "lucide-react": "^1.31.0",
-    "react-i18next": "^17.0.11",
-    "react-router-dom": "^7.18.2",
-    "tailwind-merge": "^3.6.0"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0",
+    "i18next": "^23.8.2",
+    "react-i18next": "^14.0.5",
+    "framer-motion": "^11.0.5",
+    "lucide-react": "^0.344.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0"
   }
 }

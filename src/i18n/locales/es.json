@@ -1,0 +1,110 @@
+{
+  "header": {
+    "features": "Funciones",
+    "practice": "Practicar",
+    "tools": "Herramientas",
+    "hsk": "HSK",
+    "freeTest": "Test Gratis",
+    "blog": "Blog",
+    "openApp": "Abrir App"
+  },
+  "hero": {
+    "badge": "Diagnóstico gratuito · Sin registro",
+    "title": "Descubre qué frena tu",
+    "titleAccent": "pronunciación CJK",
+    "subtitle": "Graba 5 palabras. Obtén un análisis instantáneo de tonos, acento tonal e entonación — y sabe exactamente qué corregir.",
+    "free": "Gratis",
+    "noSignup": "Sin registro",
+    "worksInBrowser": "Funciona en tu navegador",
+    "statsTests": "pruebas realizadas",
+    "statsRating": "puntuación media",
+    "statsItems": "ejercicios",
+    "realTimeScoring": "Puntuación AI en tiempo real",
+    "learners": "estudiantes"
+  },
+  "languages": {
+    "chinese": "Chino",
+    "chineseMeta": "4 tonos",
+    "japanese": "Japonés",
+    "japaneseMeta": "acento tonal",
+    "korean": "Coreano",
+    "koreanMeta": "longitud vocal"
+  },
+  "howItWorks": {
+    "title": "Cómo funciona",
+    "subtitle": "Simple como 1-2-3",
+    "step1Title": "Lee el texto",
+    "step1Desc": "Ve caracteres con guía de pronunciación pinyin",
+    "step2Title": "Grábate",
+    "step2Desc": "Habla al micrófono — capturamos cada detalle",
+    "step3Title": "Recibe feedback AI",
+    "step3Desc": "Análisis instantáneo de tonos, iniciales y finales"
+  },
+  "features": {
+    "title": "Funciones",
+    "toneTraining": {
+      "title": "Entrenamiento de tonos",
+      "desc": "Domina todos los tonos con puntuación por sílaba, audio de hablantes nativos y ejercicios dirigidos."
+    },
+    "initialsFinals": {
+      "title": "Iniciales y finales",
+      "desc": "Entrena cada sonido con ejercicios dirigidos para cada segmento."
+    },
+    "aiFeedback": {
+      "title": "Feedback AI",
+      "desc": "Obtén análisis detallado instantáneo de tu pronunciación."
+    },
+    "spacedRepetition": {
+      "title": "Repetición espaciada",
+      "desc": "Sistema de repaso estilo Anki que programa práctica según tu rendimiento."
+    },
+    "learningPath": {
+      "title": "Ruta de aprendizaje",
+      "desc": "Entrenamientos diarios personalizados que se adaptan a tu nivel."
+    },
+    "placementTest": {
+      "title": "Test de nivel",
+      "desc": "Haz un test de 2 minutos para descubrir tu nivel."
+    }
+  },
+  "pricing": {
+    "title": "Precios",
+    "subtitle": "Precios simples y transparentes",
+    "description": "Empieza gratis y actualiza cuando estés listo. Sin sorpresas.",
+    "free": {
+      "name": "Gratis",
+      "price": "$0",
+      "period": "para siempre",
+      "cta": "Empezar gratis",
+      "features": [
+        "15 sesiones diarias",
+        "Entrenamiento diario",
+        "Test de nivel",
+        "Seguimiento de progreso"
+      ]
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "$8.50",
+      "period": "/mes",
+      "badge": "Más popular",
+      "cta": "Empezar Premium",
+      "features": [
+        "Evaluaciones ilimitadas",
+        "Repetición espaciada",
+        "Práctica con texto personalizado",
+        "Análisis avanzado"
+      ]
+    }
+  },
+  "voiceCheck": {
+    "title": "Tu verificación de voz",
+    "subtitle": "Escucha primero, luego copia la melodía — no se requiere lectura. Puntuaremos cada sílaba y encontraremos tu brecha #1.",
+    "hearFirst": "Escuchar primero",
+    "tapToRecord": "Toca para grabar",
+    "privacy": "Solo escuchamos para mapear tus sonidos débiles — nada se comparte."
+  },
+  "footer": {
+    "copyright": "© 2026 LinguaTone. Todos los derechos reservados."
+  }
+}

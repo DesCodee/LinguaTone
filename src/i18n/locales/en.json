@@ -1,0 +1,111 @@
+{
+  "header": {
+    "features": "Features",
+    "practice": "Practice",
+    "tools": "Tools",
+    "hsk": "HSK",
+    "freeTest": "Free Test",
+    "blog": "Blog",
+    "openApp": "Open App"
+  },
+  "hero": {
+    "badge": "Free Pronunciation Diagnosis · No Signup",
+    "title": "Find out what's holding back your",
+    "titleAccent": "CJK pronunciation",
+    "subtitle": "Record 5 words. Get an instant breakdown of your tones, pitch accent, and intonation — and know exactly what to fix.",
+    "cta": "Diagnose My Pronunciation",
+    "free": "Free",
+    "noSignup": "No signup",
+    "worksInBrowser": "Works right in your browser",
+    "statsTests": "tests taken",
+    "statsRating": "app rating",
+    "statsItems": "practice items",
+    "realTimeScoring": "Real-time AI scoring",
+    "learners": "learners"
+  },
+  "languages": {
+    "chinese": "Chinese",
+    "chineseMeta": "4 tones",
+    "japanese": "Japanese",
+    "japaneseMeta": "pitch accent",
+    "korean": "Korean",
+    "koreanMeta": "vowel length"
+  },
+  "howItWorks": {
+    "title": "How it works",
+    "subtitle": "Simple as 1-2-3",
+    "step1Title": "Read the text",
+    "step1Desc": "See characters with pinyin pronunciation guide",
+    "step2Title": "Record yourself",
+    "step2Desc": "Speak into your microphone — we capture every detail",
+    "step3Title": "Get AI feedback",
+    "step3Desc": "Instant analysis of tones, initials, and finals"
+  },
+  "features": {
+    "title": "Features",
+    "toneTraining": {
+      "title": "Tone Training",
+      "desc": "Master all tones with instant per-syllable scores, native-speaker audio, and targeted drills."
+    },
+    "initialsFinals": {
+      "title": "Initials & Finals",
+      "desc": "Train every sound with targeted exercises for each segment."
+    },
+    "aiFeedback": {
+      "title": "AI Feedback",
+      "desc": "Get instant, detailed analysis of your pronunciation — tone accuracy, segment clarity, and overall score."
+    },
+    "spacedRepetition": {
+      "title": "Spaced Repetition",
+      "desc": "Anki-style review system that schedules practice based on your performance. Never forget what you've learned."
+    },
+    "learningPath": {
+      "title": "Learning Path",
+      "desc": "Personalized daily workouts that adapt to your level. Focus on your weakest areas first."
+    },
+    "placementTest": {
+      "title": "Placement Test",
+      "desc": "Take a 2-minute test to discover your level and get a personalized learning plan."
+    }
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Simple, transparent pricing",
+    "description": "Start free and upgrade when you're ready. No surprises.",
+    "free": {
+      "name": "Free",
+      "price": "$0",
+      "period": "forever",
+      "cta": "Get Started Free",
+      "features": [
+        "15 daily practice sessions",
+        "Daily workout",
+        "Placement test",
+        "Progress tracking"
+      ]
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "$8.50",
+      "period": "/month",
+      "badge": "Most Popular",
+      "cta": "Start Premium",
+      "features": [
+        "Unlimited assessments",
+        "Spaced repetition reviews",
+        "Custom text practice",
+        "Advanced analytics"
+      ]
+    }
+  },
+  "voiceCheck": {
+    "title": "Your voice check",
+    "subtitle": "Listen first, then copy the melody — no reading required. We'll score every syllable and find your #1 gap.",
+    "hearFirst": "Hear it first",
+    "tapToRecord": "Tap to record",
+    "privacy": "We only listen to map your weak sounds — nothing is shared."
+  },
+  "footer": {
+    "copyright": "© 2026 LinguaTone. All rights reserved."
+  }
+}
