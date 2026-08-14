@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight } from 'lucide-react'
+import { Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, Flame } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { useStreak } from '../hooks/useStreak'
+import { useProgress } from '../hooks/useProgress'
+import { addSession } from '../lib/storage'
 
 const samplePhrases = [
   { text: '你好，我想学中文', pinyin: 'nǐ hǎo wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh' },
@@ -37,12 +40,14 @@ export default function AppDashboard() {
   const [phase, setPhase] = useState<'listen' | 'record' | 'result'>('listen')
   const [selectedLang, setSelectedLang] = useState('zh')
   const { isRecording, startRecording, stopRecording } = useAudioRecorder()
+  const { streak } = useStreak()
+  const { addSession: saveSessionToStorage } = useProgress()
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const phrase = samplePhrases[currentPhrase]
   const pitchData = useMemo(() => generatePitchData(), [currentPhrase])
 
-  // Рисуем pitch-контур на canvas
+  // Canvas pitch contour
   useEffect(() => {
     if (phase !== 'result' || !canvasRef.current) return
     const canvas = canvasRef.current
@@ -59,7 +64,7 @@ export default function AppDashboard() {
     const h = rect.height
     ctx.clearRect(0, 0, w, h)
 
-    // Сетка
+    // Grid
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)'
     ctx.lineWidth = 1
     for (let i = 1; i < 5; i++) {
@@ -70,7 +75,7 @@ export default function AppDashboard() {
       ctx.stroke()
     }
 
-    // Заливка между кривыми
+    // Fill between curves
     ctx.beginPath()
     pitchData.user.forEach((p, i) => {
       const x = p.x * w
@@ -86,7 +91,7 @@ export default function AppDashboard() {
     ctx.fillStyle = 'rgba(34, 211, 238, 0.06)'
     ctx.fill()
 
-    // Native кривая (плавная)
+    // Native curve
     ctx.beginPath()
     ctx.strokeStyle = '#38bdf8'
     ctx.lineWidth = 2.5
@@ -100,7 +105,7 @@ export default function AppDashboard() {
     })
     ctx.stroke()
 
-    // User кривая (рыхлая)
+    // User curve
     ctx.beginPath()
     ctx.strokeStyle = '#22d3ee'
     ctx.lineWidth = 2.5
@@ -115,9 +120,33 @@ export default function AppDashboard() {
     ctx.stroke()
   }, [phase, pitchData])
 
+  const handleRecordToggle = () => {
+    if (isRecording) {
+      stopRecording()
+      setPhase('result')
+      // Сохраняем сессию
+      saveSessionToStorage({
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        phrase: phrase.text,
+        lang: phrase.lang,
+        scores: {
+          tones: 75,
+          sounds: 68,
+          rhythm: 82,
+          overall: 72,
+        },
+        mistakes: ['3rd tone', 'initial n/l'],
+      })
+    } else {
+      startRecording()
+      setPhase('record')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-ink-900 text-white relative overflow-hidden selection:bg-ocean-500/30">
-      {/* Фоновые орбы */}
+      {/* Background orbs */}
       <div className="fixed top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-ocean-600/10 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px] pointer-events-none" />
       <div className="fixed inset-0 pointer-events-none opacity-[0.02]" style={{
@@ -125,14 +154,21 @@ export default function AppDashboard() {
         backgroundSize: '60px 60px'
       }} />
 
-      {/* Топ-бар */}
+      {/* Top bar */}
       <div className="relative flex items-center justify-between border-b border-ink-700/50 px-4 py-4 md:px-6">
         <a href="/" className="flex items-center gap-2 text-sm font-medium text-stone-400 transition-colors hover:text-white">
           <ArrowLeft size={18} />
           <span className="hidden sm:inline">Back</span>
         </a>
 
-        {/* Переключатель языков */}
+        {/* Streak */}
+        <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1.5">
+          <Flame size={14} className="text-amber-400" />
+          <span className="text-xs font-bold text-amber-300">{streak}</span>
+          <span className="text-[10px] text-amber-400/70 uppercase tracking-wider hidden sm:inline">day streak</span>
+        </div>
+
+        {/* Language switcher */}
         <div className="flex items-center gap-2">
           {languages.map((lang) => (
             <button
@@ -162,7 +198,7 @@ export default function AppDashboard() {
       </div>
 
       <div className="relative mx-auto flex max-w-2xl flex-col items-center px-4 py-8 md:py-12">
-        {/* Прогресс-точки */}
+        {/* Progress dots */}
         <div className="mb-8 flex items-center gap-2">
           {samplePhrases.map((_, i) => (
             <div
@@ -174,7 +210,7 @@ export default function AppDashboard() {
           ))}
         </div>
 
-        {/* Карточка фразы */}
+        {/* Phrase card */}
         <AnimatePresence mode="wait">
           <motion.div
             key={phrase.text}
@@ -206,18 +242,10 @@ export default function AppDashboard() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Кнопка записи */}
+        {/* Record button */}
         <div className="mt-10 flex flex-col items-center gap-4">
           <motion.button
-            onClick={() => {
-              if (isRecording) {
-                stopRecording()
-                setPhase('result')
-              } else {
-                startRecording()
-                setPhase('record')
-              }
-            }}
+            onClick={handleRecordToggle}
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all ${
@@ -251,7 +279,7 @@ export default function AppDashboard() {
           </span>
         </div>
 
-        {/* Панель результатов */}
+        {/* Results panel */}
         <AnimatePresence>
           {phase === 'result' && (
             <motion.div
@@ -260,7 +288,7 @@ export default function AppDashboard() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="mt-10 w-full space-y-5"
             >
-              {/* Шапка с оценкой */}
+              {/* Score header */}
               <div className="flex items-center justify-between rounded-2xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-6">
                 <div>
                   <div className="text-sm text-stone-400 mb-1">Pronunciation Score</div>
@@ -273,7 +301,7 @@ export default function AppDashboard() {
                   </div>
                 </div>
                 
-                {/* Круговой прогресс */}
+                {/* Circular progress */}
                 <div className="relative h-24 w-24 shrink-0">
                   <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
                     <path className="text-ink-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
@@ -295,7 +323,7 @@ export default function AppDashboard() {
                 </div>
               </div>
 
-              {/* График pitch-контура */}
+              {/* Pitch contour */}
               <div className="rounded-2xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-stone-300">Pitch Contour</h3>
@@ -317,7 +345,7 @@ export default function AppDashboard() {
                 />
               </div>
 
-              {/* Разбивка по навыкам */}
+              {/* Skills */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Tones', value: 75, color: 'bg-ocean-400', text: 'text-ocean-300' },
@@ -339,7 +367,7 @@ export default function AppDashboard() {
                 ))}
               </div>
 
-              {/* AI-фидбек карточка */}
+              {/* AI Feedback */}
               <div className="rounded-2xl border border-ocean-500/20 bg-gradient-to-br from-ocean-900/20 to-ink-800/40 backdrop-blur-xl p-6">
                 <div className="flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ocean-500/20 text-ocean-400">
@@ -354,7 +382,7 @@ export default function AppDashboard() {
                 </div>
               </div>
 
-              {/* Кнопка далее */}
+              {/* Next button */}
               <button
                 onClick={() => {
                   setCurrentPhrase((p) => (p + 1) % samplePhrases.length)
