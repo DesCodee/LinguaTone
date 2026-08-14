@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User } from 'lucide-react'
+import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User, Map } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const languages = [
@@ -111,6 +111,20 @@ export default function Header() {
           </div>
 
           <a
+          <a
+            href="/path"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+            title="Learning Path"
+          >
+            <Map size={18} />
+          </a>
+          <a
+            href="/path"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+            title="Learning Path"
+          >
+            <Map size={18} />
+          </a>
             href="/profile"
             className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
             title="Profile"
@@ -173,6 +187,20 @@ export default function Header() {
                 ))}
               </div>
               <a
+          <a
+            href="/path"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+            title="Learning Path"
+          >
+            <Map size={18} />
+          </a>
+          <a
+            href="/path"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+            title="Learning Path"
+          >
+            <Map size={18} />
+          </a>
                 href="/profile"
                 className="block rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600"
                 onClick={() => setMobileOpen(false)}
