@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, Menu, X, Globe, ChevronDown, Sparkles } from 'lucide-react'
+import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const languages = [
@@ -111,6 +111,14 @@ export default function Header() {
           </div>
 
           <a
+            href="/profile"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+            title="Profile"
+          >
+            <User size={18} />
+          </a>
+
+          <a
             href="/app"
             className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/30 hover:-translate-y-0.5 active:translate-y-0"
           >
@@ -164,6 +172,13 @@ export default function Header() {
                   </button>
                 ))}
               </div>
+              <a
+                href="/profile"
+                className="block rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600"
+                onClick={() => setMobileOpen(false)}
+              >
+                Profile
+              </a>
               <a
                 href="/app"
                 className="mt-2 block w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-2.5 text-center text-sm font-semibold text-white"
