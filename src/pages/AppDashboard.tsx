@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { 
   Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, 
-  Flame, BookOpen, Target, TrendingUp, CheckCircle2, X, 
+  Flame, BookOpen, Target, TrendingUp, CheckCircle2,
   Trophy, Bell, BellOff, Settings
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
