@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, Flame, BookOpen, CheckCircle2 } from 'lucide-react'
+import { Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, Flame, BookOpen, Target, TrendingUp, CheckCircle2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { useStreak } from '../hooks/useStreak'
 import { useProgress } from '../hooks/useProgress'
 import { useLessons } from '../hooks/useLessons'
+import { useReview } from '../hooks/useReview'
 import { lessons } from '../data/lessons'
+
 
 const samplePhrases = [
   { text: '你好，我想学中文', pinyin: 'nǐ hǎo wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh' },
@@ -43,10 +45,12 @@ export default function AppDashboard() {
   const [phase, setPhase] = useState<'listen' | 'record' | 'result'>('listen')
   const [selectedLang, setSelectedLang] = useState('zh')
   const [showComplete, setShowComplete] = useState(false)
+  const [mode, setMode] = useState<'lesson' | 'review'>('lesson')
   const { isRecording, startRecording, stopRecording } = useAudioRecorder()
   const { streak } = useStreak()
   const { addSession: saveSessionToStorage } = useProgress()
   const { markComplete, currentLessonId } = useLessons()
+  const reviewItems = useReview()
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const currentLesson = useMemo(() => {
@@ -54,17 +58,40 @@ export default function AppDashboard() {
     return lessons.find((l) => l.id === currentLessonId) || null
   }, [currentLessonId])
 
+  // Формируем phrases в зависимости от режима
   const phrases = useMemo(() => {
+    if (mode === 'review' && reviewItems.length > 0) {
+      return reviewItems.map((r) => {
+        // Ищем pinyin в lessons
+        let pinyin = ''
+        let translation = 'Review item'
+        for (const lesson of lessons) {
+          const found = lesson.phrases.find((p) => p.text === r.phrase)
+          if (found) {
+            pinyin = found.pinyin
+            translation = found.translation
+            break
+          }
+        }
+        return {
+          text: r.phrase,
+          pinyin,
+          translation,
+          lang: r.lang,
+          lastScore: r.lastScore,
+        }
+      })
+    }
     if (currentLesson) return currentLesson.phrases.map((p) => ({ ...p, lang: currentLesson.lang }))
     return samplePhrases
-  }, [currentLesson])
+  }, [mode, reviewItems, currentLesson])
 
   const phrase = phrases[currentPhraseIdx]
-  const pitchData = useMemo(() => generatePitchData(), [currentPhraseIdx, currentLessonId])
+  const pitchData = useMemo(() => generatePitchData(), [currentPhraseIdx, currentLessonId, mode])
 
   useEffect(() => {
-    if (currentLesson) setSelectedLang(currentLesson.lang)
-  }, [currentLesson])
+    if (currentLesson && mode === 'lesson') setSelectedLang(currentLesson.lang)
+  }, [currentLesson, mode])
 
   useEffect(() => {
     if (phase !== 'result' || !canvasRef.current) return
@@ -157,7 +184,7 @@ export default function AppDashboard() {
   const handleNext = () => {
     const nextIdx = currentPhraseIdx + 1
     if (nextIdx >= phrases.length) {
-      if (currentLesson) markComplete(currentLesson.id)
+      if (mode === 'lesson' && currentLesson) markComplete(currentLesson.id)
       setShowComplete(true)
     } else {
       setCurrentPhraseIdx(nextIdx)
@@ -166,6 +193,21 @@ export default function AppDashboard() {
   }
 
   const isLastPhrase = currentPhraseIdx === phrases.length - 1
+
+  const startReview = () => {
+    if (reviewItems.length === 0) return
+    setMode('review')
+    setCurrentPhraseIdx(0)
+    setPhase('listen')
+    setShowComplete(false)
+  }
+
+  const startLesson = () => {
+    setMode('lesson')
+    setCurrentPhraseIdx(0)
+    setPhase('listen')
+    setShowComplete(false)
+  }
 
   if (!phrase) {
     return (
@@ -194,12 +236,17 @@ export default function AppDashboard() {
         >
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 size={32} />
+              {mode === 'review' ? <Target size={32} /> : <CheckCircle2 size={32} />}
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Lesson Complete!</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {mode === 'review' ? 'Review Complete!' : 'Lesson Complete!'}
+          </h2>
           <p className="text-stone-400 mb-6">
-            You've finished <span className="text-white font-medium">"{currentLesson?.title || 'Quick Practice'}"</span>. Great job!
+            {mode === 'review' 
+              ? "You've reviewed all problem phrases. Well done!"
+              : `You've finished "${currentLesson?.title || 'Quick Practice'}". Great job!`
+            }
           </p>
           <div className="flex gap-3 justify-center">
             <button
@@ -213,10 +260,16 @@ export default function AppDashboard() {
               Practice Again
             </button>
             <button
-              onClick={() => navigate('/path')}
+              onClick={() => {
+                if (mode === 'review') {
+                  startLesson()
+                } else {
+                  navigate('/path')
+                }
+              }}
               className="rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 hover:shadow-xl transition-all"
             >
-              Next Lesson
+              {mode === 'review' ? 'Back to Lesson' : 'Next Lesson'}
             </button>
           </div>
         </motion.div>
@@ -247,7 +300,7 @@ export default function AppDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          {languages.map((lang) => (
+          {mode === 'lesson' && languages.map((lang) => (
             <button
               key={lang.code}
               onClick={() => { if (!currentLesson) setSelectedLang(lang.code) }}
@@ -265,6 +318,27 @@ export default function AppDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Review button */}
+          {reviewItems.length > 0 && mode === 'lesson' && (
+            <button
+              onClick={startReview}
+              className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition-all hover:bg-red-500/20"
+              title={`${reviewItems.length} phrases to review`}
+            >
+              <Target size={14} />
+              <span className="hidden sm:inline">Review</span>
+              <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full text-[10px]">{reviewItems.length}</span>
+            </button>
+          )}
+          {mode === 'review' && (
+            <button
+              onClick={startLesson}
+              className="flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1.5 text-xs font-medium text-ocean-300 transition-all hover:bg-ocean-500/20"
+            >
+              <BookOpen size={14} />
+              <span className="hidden sm:inline">Lesson</span>
+            </button>
+          )}
           <button
             onClick={() => navigate('/path')}
             className="flex items-center gap-1 text-sm text-stone-400 transition-colors hover:text-white"
@@ -285,8 +359,21 @@ export default function AppDashboard() {
       </div>
 
       <div className="relative mx-auto flex max-w-2xl flex-col items-center px-4 py-8 md:py-12">
+        {/* Mode badge */}
+        {mode === 'review' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 flex items-center gap-2 rounded-full bg-red-500/10 border border-red-500/20 px-4 py-1.5"
+          >
+            <Target size={14} className="text-red-400" />
+            <span className="text-xs font-medium text-red-300">Review Mode</span>
+            <span className="text-xs text-red-400/70">{reviewItems.length} phrases</span>
+          </motion.div>
+        )}
+
         {/* Lesson badge */}
-        {currentLesson && (
+        {mode === 'lesson' && currentLesson && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -311,7 +398,7 @@ export default function AppDashboard() {
         </div>
 
         {/* Phrase counter */}
-        {currentLesson && (
+        {currentLesson && mode === 'lesson' && (
           <div className="mb-4 text-xs text-stone-500 font-medium">
             Phrase {currentPhraseIdx + 1} of {phrases.length}
           </div>
@@ -320,7 +407,7 @@ export default function AppDashboard() {
         {/* Phrase card */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={phrase.text}
+            key={phrase.text + mode}
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.98 }}
@@ -330,12 +417,22 @@ export default function AppDashboard() {
             <div className="text-4xl md:text-5xl font-medium tracking-wide text-white mb-3">
               {phrase.text}
             </div>
-            <div className="text-lg md:text-xl text-ocean-300 font-medium tracking-wider">
-              {phrase.pinyin}
-            </div>
+            {phrase.pinyin && (
+              <div className="text-lg md:text-xl text-ocean-300 font-medium tracking-wider">
+                {phrase.pinyin}
+              </div>
+            )}
             <div className="mt-2 text-sm text-stone-500">
               {phrase.translation}
             </div>
+            
+            {/* Last score indicator in review mode */}
+            {mode === 'review' && 'lastScore' in phrase && (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1">
+                <TrendingUp size={12} className="text-red-400" />
+                <span className="text-xs text-red-300">Last attempt: {(phrase as any).lastScore}%</span>
+              </div>
+            )}
 
             {phase === 'listen' && (
               <button
@@ -493,7 +590,7 @@ export default function AppDashboard() {
                 onClick={handleNext}
                 className="group w-full rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 transition-all hover:shadow-xl hover:shadow-ocean-500/30 flex items-center justify-center gap-2"
               >
-                {isLastPhrase ? (currentLesson ? 'Complete Lesson' : 'Next Phrase') : 'Next Phrase'}
+                {isLastPhrase ? (mode === 'review' ? 'Finish Review' : currentLesson ? 'Complete Lesson' : 'Next Phrase') : 'Next Phrase'}
                 <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" />
               </button>
             </motion.div>

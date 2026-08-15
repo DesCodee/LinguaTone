@@ -16,7 +16,7 @@ export default function Footer() {
           </div>
 
           <div className="flex items-center gap-4">
-            <a href="#" className="text-stone-400 transition-colors hover:text-ocean-500">
+            <a href="https://github.com/DesCodee/LinguaTone" className="text-stone-400 transition-colors hover:text-ocean-500">
               <Github size={18} />
             </a>
             <a href="#" className="text-stone-400 transition-colors hover:text-ocean-500">
