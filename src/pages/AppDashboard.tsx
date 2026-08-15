@@ -1,15 +1,85 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, Flame, BookOpen, Target, TrendingUp, CheckCircle2 } from 'lucide-react'
+import { 
+  Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, 
+  Flame, BookOpen, Target, TrendingUp, CheckCircle2, X, 
+  Trophy, Bell, BellOff, Settings
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { useStreak } from '../hooks/useStreak'
 import { useProgress } from '../hooks/useProgress'
 import { useLessons } from '../hooks/useLessons'
 import { useReview } from '../hooks/useReview'
+import { useDailyGoal } from '../hooks/useDailyGoal'
 import { lessons } from '../data/lessons'
+import { requestNotificationPermission } from '../lib/notifications'
+import DailyGoalSetup from '../components/DailyGoalSetup'
 
+// ===== BONUS: Confetti particles =====
+function Confetti() {
+  const particles = Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    delay: Math.random() * 0.5,
+    duration: 1 + Math.random() * 1,
+    color: ['#0ea5e9', '#22d3ee', '#10b981', '#f59e0b', '#ef4444'][Math.floor(Math.random() * 5)],
+  }))
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          initial={{ y: -20, x: `${p.x}%`, opacity: 1, scale: 0 }}
+          animate={{ 
+            y: '100vh', 
+            opacity: 0, 
+            scale: 1,
+            rotate: Math.random() * 720 - 360 
+          }}
+          transition={{ 
+            duration: p.duration, 
+            delay: p.delay, 
+            ease: 'easeOut' 
+          }}
+          className="absolute w-2 h-2 rounded-full"
+          style={{ backgroundColor: p.color }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ===== BONUS: Audio visualizer bars =====
+function AudioVisualizer({ isRecording }: { isRecording: boolean }) {
+  const [bars, setBars] = useState<number[]>(Array(12).fill(4))
+
+  useEffect(() => {
+    if (!isRecording) {
+      setBars(Array(12).fill(4))
+      return
+    }
+    const interval = setInterval(() => {
+      setBars(Array(12).fill(0).map(() => 4 + Math.random() * 28))
+    }, 80)
+    return () => clearInterval(interval)
+  }, [isRecording])
+
+  return (
+    <div className="flex items-end justify-center gap-1 h-8 mb-4">
+      {bars.map((h, i) => (
+        <motion.div
+          key={i}
+          className="w-1 rounded-full bg-ocean-400/60"
+          animate={{ height: `${h}px` }}
+          transition={{ duration: 0.08 }}
+        />
+      ))}
+    </div>
+  )
+}
 
 const samplePhrases = [
   { text: '你好，我想学中文', pinyin: 'nǐ hǎo wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh' },
@@ -46,23 +116,34 @@ export default function AppDashboard() {
   const [selectedLang, setSelectedLang] = useState('zh')
   const [showComplete, setShowComplete] = useState(false)
   const [mode, setMode] = useState<'lesson' | 'review'>('lesson')
+  const [showConfetti, setShowConfetti] = useState(false)
+  const [notifEnabled, setNotifEnabled] = useState(false)
   const { isRecording, startRecording, stopRecording } = useAudioRecorder()
   const { streak } = useStreak()
   const { addSession: saveSessionToStorage } = useProgress()
   const { markComplete, currentLessonId } = useLessons()
   const reviewItems = useReview()
+  const { goal, progress, percent, isGoalReached, showSetup, setShowSetup, setGoal, addSessionTime } = useDailyGoal()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const goalWasReached = useRef(false)
+
+  // Check if goal just reached for confetti
+  useEffect(() => {
+    if (isGoalReached && !goalWasReached.current && !showSetup) {
+      goalWasReached.current = true
+      setShowConfetti(true)
+      setTimeout(() => setShowConfetti(false), 3000)
+    }
+  }, [isGoalReached, showSetup])
 
   const currentLesson = useMemo(() => {
     if (!currentLessonId) return null
     return lessons.find((l) => l.id === currentLessonId) || null
   }, [currentLessonId])
 
-  // Формируем phrases в зависимости от режима
   const phrases = useMemo(() => {
     if (mode === 'review' && reviewItems.length > 0) {
       return reviewItems.map((r) => {
-        // Ищем pinyin в lessons
         let pinyin = ''
         let translation = 'Review item'
         for (const lesson of lessons) {
@@ -73,13 +154,7 @@ export default function AppDashboard() {
             break
           }
         }
-        return {
-          text: r.phrase,
-          pinyin,
-          translation,
-          lang: r.lang,
-          lastScore: r.lastScore,
-        }
+        return { text: r.phrase, pinyin, translation, lang: r.lang, lastScore: r.lastScore }
       })
     }
     if (currentLesson) return currentLesson.phrases.map((p) => ({ ...p, lang: currentLesson.lang }))
@@ -174,6 +249,7 @@ export default function AppDashboard() {
           scores: { tones: 75, sounds: 68, rhythm: 82, overall: 72 },
           mistakes: ['3rd tone', 'initial n/l'],
         })
+        addSessionTime(2)
       }
     } else {
       startRecording()
@@ -186,6 +262,11 @@ export default function AppDashboard() {
     if (nextIdx >= phrases.length) {
       if (mode === 'lesson' && currentLesson) markComplete(currentLesson.id)
       setShowComplete(true)
+      if (progress.sessionsCount === 0 && !notifEnabled) {
+        requestNotificationPermission().then((granted) => {
+          if (granted) setNotifEnabled(true)
+        })
+      }
     } else {
       setCurrentPhraseIdx(nextIdx)
       setPhase('listen')
@@ -194,20 +275,20 @@ export default function AppDashboard() {
 
   const isLastPhrase = currentPhraseIdx === phrases.length - 1
 
-  const startReview = () => {
+  const startReview = useCallback(() => {
     if (reviewItems.length === 0) return
     setMode('review')
     setCurrentPhraseIdx(0)
     setPhase('listen')
     setShowComplete(false)
-  }
+  }, [reviewItems.length])
 
-  const startLesson = () => {
+  const startLesson = useCallback(() => {
     setMode('lesson')
     setCurrentPhraseIdx(0)
     setPhase('listen')
     setShowComplete(false)
-  }
+  }, [])
 
   if (!phrase) {
     return (
@@ -235,8 +316,8 @@ export default function AppDashboard() {
           className="text-center max-w-md w-full mx-auto p-8 rounded-3xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl"
         >
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-              {mode === 'review' ? <Target size={32} /> : <CheckCircle2 size={32} />}
+            <div className={`h-16 w-16 rounded-full flex items-center justify-center ${mode === 'review' ? 'bg-ocean-500/20 text-ocean-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+              {mode === 'review' ? <Trophy size={32} /> : <CheckCircle2 size={32} />}
             </div>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">
@@ -248,7 +329,13 @@ export default function AppDashboard() {
               : `You've finished "${currentLesson?.title || 'Quick Practice'}". Great job!`
             }
           </p>
-          <div className="flex gap-3 justify-center">
+          {isGoalReached && (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
+              <Trophy size={14} className="text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-300">Daily goal reached!</span>
+            </div>
+          )}
+          <div className="flex gap-3 justify-center mt-4">
             <button
               onClick={() => {
                 setShowComplete(false)
@@ -279,6 +366,8 @@ export default function AppDashboard() {
 
   return (
     <div className="min-h-screen bg-ink-900 text-white relative overflow-hidden selection:bg-ocean-500/30">
+      {showConfetti && <Confetti />}
+      
       <div className="fixed top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-ocean-600/10 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px] pointer-events-none" />
       <div className="fixed inset-0 pointer-events-none opacity-[0.02]" style={{
@@ -318,6 +407,32 @@ export default function AppDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Notification toggle */}
+          <button
+            onClick={() => {
+              if (!notifEnabled) {
+                requestNotificationPermission().then(setNotifEnabled)
+              } else {
+                setNotifEnabled(false)
+              }
+            }}
+            className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all ${
+              notifEnabled ? 'bg-ocean-500/20 text-ocean-400' : 'text-stone-500 hover:bg-ink-800'
+            }`}
+            title="Notifications"
+          >
+            {notifEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+          </button>
+
+          {/* Goal settings */}
+          <button
+            onClick={() => setShowSetup(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ink-800"
+            title="Daily Goal"
+          >
+            <Settings size={16} />
+          </button>
+
           {/* Review button */}
           {reviewItems.length > 0 && mode === 'lesson' && (
             <button
@@ -359,6 +474,50 @@ export default function AppDashboard() {
       </div>
 
       <div className="relative mx-auto flex max-w-2xl flex-col items-center px-4 py-8 md:py-12">
+        {/* Daily Goal Progress */}
+        {goal.enabled && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 w-full"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Target size={14} className={isGoalReached ? 'text-emerald-400' : 'text-ocean-400'} />
+                <span className="text-xs font-medium text-stone-400">
+                  Daily Goal: {progress.minutesDone}/{goal.minutes} min
+                </span>
+              </div>
+              <span className={`text-xs font-bold ${isGoalReached ? 'text-emerald-400' : 'text-ocean-400'}`}>
+                {isGoalReached ? '✓ Done!' : `${percent}%`}
+              </span>
+            </div>
+            <div className="h-2.5 w-full rounded-full bg-ink-700 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full ${
+                  isGoalReached 
+                    ? 'bg-gradient-to-r from-emerald-400 to-teal-400' 
+                    : 'bg-gradient-to-r from-ocean-400 to-cyan-400'
+                }`}
+                initial={{ width: 0 }}
+                animate={{ width: `${percent}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+            </div>
+            {isGoalReached && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mt-2 text-center"
+              >
+                <span className="text-xs font-medium text-emerald-400">
+                  🎉 Goal reached! Come back tomorrow!
+                </span>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
         {/* Mode badge */}
         {mode === 'review' && (
           <motion.div
@@ -372,7 +531,6 @@ export default function AppDashboard() {
           </motion.div>
         )}
 
-        {/* Lesson badge */}
         {mode === 'lesson' && currentLesson && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -403,6 +561,9 @@ export default function AppDashboard() {
             Phrase {currentPhraseIdx + 1} of {phrases.length}
           </div>
         )}
+
+        {/* Audio Visualizer */}
+        <AudioVisualizer isRecording={isRecording} />
 
         {/* Phrase card */}
         <AnimatePresence mode="wait">
@@ -606,6 +767,9 @@ export default function AppDashboard() {
           {t('voiceCheck.privacy')}
         </div>
       </div>
+
+      {/* Daily Goal Setup Modal */}
+      <DailyGoalSetup open={showSetup} onSelect={setGoal} onClose={() => setShowSetup(false)} />
     </div>
   )
 }
