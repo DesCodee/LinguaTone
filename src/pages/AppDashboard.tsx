@@ -394,7 +394,10 @@ export default function AppDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950 text-white">
+    <div className="min-h-screen bg-ink-950 text-white relative overflow-hidden">
+      <div className="fixed top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-ocean-600/10 blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px] pointer-events-none" />
+
       {showConfetti && <Confetti />}
 
       {/* Daily Goal Setup Modal */}
@@ -405,7 +408,7 @@ export default function AppDashboard() {
       />
 
       {/* Top bar */}
-      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-ink-800 bg-ink-950/80 backdrop-blur-xl px-4 py-3 md:px-6">
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-ink-800 bg-ink-950/90 backdrop-blur-xl px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
