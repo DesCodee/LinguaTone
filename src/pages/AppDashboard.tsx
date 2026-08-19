@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { 
   Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, 
-  Flame, BookOpen, Target, TrendingUp, CheckCircle2,
-  Trophy, Bell, BellOff, Settings
+  Flame, BookOpen, Target, TrendingUp, Trophy, Bell
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
@@ -16,6 +15,7 @@ import { useDailyGoal } from '../hooks/useDailyGoal'
 import { lessons, getLessonsByLang } from '../data/lessons'
 import { requestNotificationPermission } from '../lib/notifications'
 import { speakText, stopSpeech, playSuccessChime } from '../lib/speech'
+import { evaluatePronunciation, getNativePitchContour, PitchPoint } from '../lib/audioAnalysis'
 import DailyGoalSetup from '../components/DailyGoalSetup'
 
 // ===== Confetti particles =====
@@ -45,7 +45,7 @@ function Confetti() {
             delay: p.delay, 
             ease: 'easeOut' 
           }}
-          className="absolute w-2 h-2 rounded-full"
+          className="absolute h-2.5 w-2.5 rounded-sm"
           style={{ backgroundColor: p.color }}
         />
       ))}
@@ -54,7 +54,7 @@ function Confetti() {
 }
 
 // ===== Audio visualizer bars =====
-function AudioVisualizer({ isRecording }: { isRecording: boolean }) {
+function AudioVisualizer({ isRecording, volume }: { isRecording: boolean; volume: number }) {
   const [bars, setBars] = useState<number[]>(Array(12).fill(4))
 
   useEffect(() => {
@@ -62,20 +62,22 @@ function AudioVisualizer({ isRecording }: { isRecording: boolean }) {
       setBars(Array(12).fill(4))
       return
     }
-    const interval = setInterval(() => {
-      setBars(Array(12).fill(0).map(() => 4 + Math.random() * 28))
-    }, 80)
-    return () => clearInterval(interval)
-  }, [isRecording])
+    const factor = Math.min(1, Math.max(0.15, volume * 18))
+    setBars(
+      Array(12)
+        .fill(0)
+        .map(() => 4 + factor * (10 + Math.random() * 24))
+    )
+  }, [isRecording, volume])
 
   return (
-    <div className="flex items-end justify-center gap-1 h-8 mb-4">
+    <div className="flex items-end justify-center gap-1 h-8 my-2">
       {bars.map((h, i) => (
         <motion.div
           key={i}
-          className="w-1 rounded-full bg-ocean-400/60"
-          animate={{ height: `${h}px` }}
-          transition={{ duration: 0.08 }}
+          className="w-1.5 rounded-full bg-gradient-to-t from-ocean-500 to-cyan-400"
+          animate={{ height: `${Math.max(4, Math.min(32, h))}px` }}
+          transition={{ duration: 0.06 }}
         />
       ))}
     </div>
@@ -96,19 +98,6 @@ const languages = [
   { code: 'ko', flag: '🇰🇷', name: 'Korean' },
 ]
 
-function generatePitchData() {
-  const native = []
-  const user = []
-  for (let i = 0; i <= 120; i++) {
-    const x = i / 120
-    const nativeY = 0.5 + 0.25 * Math.sin(x * Math.PI * 4) + 0.08 * Math.sin(x * Math.PI * 9)
-    const userY = nativeY + (Math.random() - 0.5) * 0.16 + 0.05 * Math.sin(x * Math.PI * 12)
-    native.push({ x, y: Math.max(0.1, Math.min(0.9, nativeY)) })
-    user.push({ x, y: Math.max(0.1, Math.min(0.9, userY)) })
-  }
-  return { native, user }
-}
-
 export default function AppDashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -122,14 +111,19 @@ export default function AppDashboard() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [playbackRate, setPlaybackRate] = useState<number>(0.85)
   const [currentScores, setCurrentScores] = useState({
-    tones: 82,
-    sounds: 78,
-    rhythm: 85,
-    overall: 82,
-    feedback: 'Clear pitch modulation and steady cadence! Keep practicing the falling-rising curve.',
+    tones: 85,
+    sounds: 80,
+    rhythm: 82,
+    overall: 83,
+    feedback: 'Pronounce the phrase clearly and match the target tone contour.',
   })
 
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder()
+  const [pitchData, setPitchData] = useState<{ user: PitchPoint[]; native: PitchPoint[] }>({
+    user: [],
+    native: [],
+  })
+
+  const { isRecording, currentVolume, startRecording, stopRecording } = useAudioRecorder()
   const { streak } = useStreak()
   const { addSession: saveSessionToStorage } = useProgress()
   const { markComplete, selectLesson, currentLessonId } = useLessons()
@@ -185,7 +179,17 @@ export default function AppDashboard() {
   }, [mode, reviewItems, currentLesson])
 
   const phrase = phrases[currentPhraseIdx]
-  const pitchData = useMemo(() => generatePitchData(), [currentPhraseIdx, currentLessonId, mode, phase])
+
+  // Update target native contour when phrase changes
+  useEffect(() => {
+    if (phrase) {
+      const nativePoints = getNativePitchContour(phrase.text, phrase.pinyin, phrase.lang)
+      setPitchData((prev) => ({
+        ...prev,
+        native: nativePoints,
+      }))
+    }
+  }, [phrase])
 
   useEffect(() => {
     if (currentLesson && mode === 'lesson') {
@@ -210,6 +214,7 @@ export default function AppDashboard() {
     const h = rect.height
     ctx.clearRect(0, 0, w, h)
 
+    // Background grid
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)'
     ctx.lineWidth = 1
     for (let i = 1; i < 5; i++) {
@@ -220,49 +225,58 @@ export default function AppDashboard() {
       ctx.stroke()
     }
 
-    ctx.beginPath()
-    pitchData.user.forEach((p, i) => {
-      const x = p.x * w
-      const y = h - p.y * h
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    })
-    for (let i = pitchData.native.length - 1; i >= 0; i--) {
-      const p = pitchData.native[i]
-      ctx.lineTo(p.x * w, h - p.y * h)
+    if (pitchData.native.length > 0 && pitchData.user.length > 0) {
+      // Area fill between curves
+      ctx.beginPath()
+      pitchData.user.forEach((p, i) => {
+        const x = p.x * w
+        const y = h - p.y * h
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      })
+      for (let i = pitchData.native.length - 1; i >= 0; i--) {
+        const p = pitchData.native[i]
+        ctx.lineTo(p.x * w, h - p.y * h)
+      }
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.06)'
+      ctx.fill()
     }
-    ctx.closePath()
-    ctx.fillStyle = 'rgba(34, 211, 238, 0.06)'
-    ctx.fill()
 
-    ctx.beginPath()
-    ctx.strokeStyle = '#38bdf8'
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    pitchData.native.forEach((p, i) => {
-      const x = p.x * w
-      const y = h - p.y * h
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    })
-    ctx.stroke()
+    // Target native pitch curve (Sky Blue)
+    if (pitchData.native.length > 0) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#38bdf8'
+      ctx.lineWidth = 3
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      pitchData.native.forEach((p, i) => {
+        const x = p.x * w
+        const y = h - p.y * h
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      })
+      ctx.stroke()
+    }
 
-    ctx.beginPath()
-    ctx.strokeStyle = '#22d3ee'
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    pitchData.user.forEach((p, i) => {
-      const x = p.x * w
-      const y = h - p.y * h
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    })
-    ctx.stroke()
+    // User's voice pitch curve (Bright Cyan / Emerald)
+    if (pitchData.user.length > 0) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#22d3ee'
+      ctx.lineWidth = 2.5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      pitchData.user.forEach((p, i) => {
+        const x = p.x * w
+        const y = h - p.y * h
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      })
+      ctx.stroke()
+    }
   }, [phase, pitchData])
 
-  // Play audio helper
+  // Play audio helper with instant voice trigger
   const handlePlayAudio = useCallback((rate: number = playbackRate) => {
     if (!phrase) return
     setIsPlayingAudio(true)
@@ -274,7 +288,7 @@ export default function AppDashboard() {
     })
   }, [phrase, playbackRate])
 
-  // "Hear it first" action: plays native voice then enables record phase
+  // "Hear it first" action: instantly plays native voice then enables record phase
   const handleHearFirst = useCallback(() => {
     if (!phrase) return
     setIsPlayingAudio(true)
@@ -297,37 +311,48 @@ export default function AppDashboard() {
     setIsPlayingAudio(false)
 
     if (isRecording) {
-      stopRecording()
+      const recordingResult = stopRecording()
       setPhase('result')
 
-      const tones = Math.floor(74 + Math.random() * 22)
-      const sounds = Math.floor(70 + Math.random() * 25)
-      const rhythm = Math.floor(78 + Math.random() * 19)
-      const overall = Math.round(tones * 0.4 + sounds * 0.3 + rhythm * 0.3)
-
-      const feedbacks = [
-        'Great pitch modulation and steady cadence! Pitch curve aligns well with native model.',
-        'Clear tone articulation! Try slowing down slightly on the falling tone transition.',
-        'Well balanced tone contour. Consonants are crisp and distinct.',
-        'Excellent vowel clarity and smooth contour inflection!',
-      ]
-      const feedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
-      const scores = { tones, sounds, rhythm, overall, feedback }
-      setCurrentScores(scores)
-      if (overall >= 80) {
-        playSuccessChime()
-      }
-
       if (phrase) {
+        // Real acoustic and tone pitch evaluation
+        const evalResult = evaluatePronunciation(
+          recordingResult.frames,
+          recordingResult.duration,
+          phrase
+        )
+
+        setCurrentScores({
+          tones: evalResult.tones,
+          sounds: evalResult.sounds,
+          rhythm: evalResult.rhythm,
+          overall: evalResult.overall,
+          feedback: evalResult.feedback,
+        })
+
+        setPitchData({
+          user: evalResult.userContour,
+          native: evalResult.nativeContour,
+        })
+
+        if (evalResult.overall >= 80) {
+          playSuccessChime()
+        }
+
         saveSessionToStorage({
           id: crypto.randomUUID(),
           date: new Date().toISOString(),
           phrase: phrase.text,
           lang: phrase.lang,
-          scores: { tones, sounds, rhythm, overall },
-          mistakes: overall < 80 ? ['Tone inflection variance', 'Vowel length'] : [],
+          scores: {
+            tones: evalResult.tones,
+            sounds: evalResult.sounds,
+            rhythm: evalResult.rhythm,
+            overall: evalResult.overall,
+          },
+          mistakes: evalResult.mistakes,
         })
-        addSessionTime(2)
+        addSessionTime(Math.max(1, Math.round(recordingResult.duration / 60) || 1))
       }
     } else {
       startRecording()
@@ -356,186 +381,98 @@ export default function AppDashboard() {
 
   const isLastPhrase = currentPhraseIdx === phrases.length - 1
 
-  const startReview = useCallback(() => {
-    if (reviewItems.length === 0) return
-    stopSpeech()
+  const startReview = () => {
     setMode('review')
     setCurrentPhraseIdx(0)
     setPhase('listen')
-    setShowComplete(false)
-  }, [reviewItems.length])
+  }
 
-  const startLesson = useCallback(() => {
-    stopSpeech()
+  const startLesson = () => {
     setMode('lesson')
     setCurrentPhraseIdx(0)
     setPhase('listen')
-    setShowComplete(false)
-  }, [])
-
-  const handleLanguageChange = (langCode: string) => {
-    stopSpeech()
-    setSelectedLang(langCode)
-    const langLessons = getLessonsByLang(langCode)
-    if (langLessons.length > 0) {
-      selectLesson(langLessons[0].id)
-    }
-    setCurrentPhraseIdx(0)
-    setPhase('listen')
-    setShowComplete(false)
-  }
-
-  if (!phrase) {
-    return (
-      <div className="min-h-screen bg-ink-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-stone-400 mb-4">No lesson selected</p>
-          <button
-            onClick={() => navigate('/path')}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white cursor-pointer"
-          >
-            <BookOpen size={16} />
-            Choose Lesson
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (showComplete) {
-    return (
-      <div className="min-h-screen bg-ink-900 text-white flex items-center justify-center px-4">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-center max-w-md w-full mx-auto p-8 rounded-3xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl"
-        >
-          <div className="flex justify-center mb-4">
-            <div className={`h-16 w-16 rounded-full flex items-center justify-center ${mode === 'review' ? 'bg-ocean-500/20 text-ocean-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-              {mode === 'review' ? <Trophy size={32} /> : <CheckCircle2 size={32} />}
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {mode === 'review' ? 'Review Complete!' : 'Lesson Complete!'}
-          </h2>
-          <p className="text-stone-400 mb-6">
-            {mode === 'review' 
-              ? "You've reviewed all problem phrases. Well done!"
-              : `You've finished "${currentLesson?.title || 'Quick Practice'}". Great job!`
-            }
-          </p>
-          {isGoalReached && (
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
-              <Trophy size={14} className="text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-300">Daily goal reached!</span>
-            </div>
-          )}
-          <div className="flex gap-3 justify-center mt-4">
-            <button
-              onClick={() => {
-                setShowComplete(false)
-                setCurrentPhraseIdx(0)
-                setPhase('listen')
-              }}
-              className="rounded-xl bg-ink-700 px-5 py-2.5 text-sm font-medium text-stone-300 hover:bg-ink-600 transition-colors cursor-pointer"
-            >
-              Practice Again
-            </button>
-            <button
-              onClick={() => {
-                if (mode === 'review') {
-                  startLesson()
-                } else {
-                  navigate('/path')
-                }
-              }}
-              className="rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 hover:shadow-xl transition-all cursor-pointer"
-            >
-              {mode === 'review' ? 'Back to Lesson' : 'Next Lesson'}
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    )
   }
 
   return (
-    <div className="min-h-screen bg-ink-900 text-white relative overflow-hidden selection:bg-ocean-500/30">
+    <div className="min-h-screen bg-ink-950 text-white">
       {showConfetti && <Confetti />}
-      
-      <div className="fixed top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-ocean-600/10 blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px] pointer-events-none" />
-      <div className="fixed inset-0 pointer-events-none opacity-[0.02]" style={{
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-        backgroundSize: '60px 60px'
-      }} />
+
+      {/* Daily Goal Setup Modal */}
+      <DailyGoalSetup
+        open={showSetup}
+        onClose={() => setShowSetup(false)}
+        onSelect={(mins) => setGoal(mins)}
+      />
 
       {/* Top bar */}
-      <div className="relative flex items-center justify-between border-b border-ink-700/50 px-4 py-4 md:px-6">
-        <a href="/" className="flex items-center gap-2 text-sm font-medium text-stone-400 transition-colors hover:text-white">
-          <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Home</span>
-        </a>
-
-        <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1.5">
-          <Flame size={14} className="text-amber-400" />
-          <span className="text-xs font-bold text-amber-300">{streak}</span>
-          <span className="text-[10px] text-amber-400/70 uppercase tracking-wider hidden sm:inline">day streak</span>
-        </div>
-
-        {/* Language Tabs */}
-        <div className="flex items-center gap-1.5">
-          {languages.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => handleLanguageChange(lang.code)}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
-                selectedLang === lang.code
-                  ? 'bg-ocean-500/20 text-ocean-300 border border-ocean-500/40 shadow-sm'
-                  : 'text-stone-400 hover:text-stone-200 border border-transparent hover:bg-ink-800'
-              }`}
-            >
-              <span>{lang.flag}</span>
-              <span className="hidden sm:inline">{lang.name}</span>
-            </button>
-          ))}
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-ink-800 bg-ink-950/80 backdrop-blur-xl px-4 py-3 md:px-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-400 hover:text-white hover:bg-ink-800 transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h1 className="text-sm font-semibold text-white">
+              {mode === 'review' ? 'Mistake Review' : currentLesson ? currentLesson.title : 'Voice Check'}
+            </h1>
+            <p className="text-[11px] text-stone-400">
+              {mode === 'review' ? 'Targeted accent correction' : currentLesson ? currentLesson.description : 'Pronunciation & tone analysis'}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Notification toggle */}
-          <button
-            onClick={() => {
-              if (!notifEnabled) {
-                requestNotificationPermission().then(setNotifEnabled)
-              } else {
-                setNotifEnabled(false)
-              }
-            }}
-            className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all cursor-pointer ${
-              notifEnabled ? 'bg-ocean-500/20 text-ocean-400' : 'text-stone-500 hover:bg-ink-800'
-            }`}
-            title="Notifications"
-          >
-            {notifEnabled ? <Bell size={16} /> : <BellOff size={16} />}
-          </button>
+          {/* Daily streak indicator */}
+          <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-xs text-amber-400">
+            <Flame size={14} className="fill-amber-400" />
+            <span className="font-semibold">{streak}</span>
+            <span className="hidden sm:inline text-amber-300/80">days</span>
+          </div>
 
-          {/* Goal settings */}
+          {/* Goal button */}
           <button
             onClick={() => setShowSetup(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ink-800 cursor-pointer"
-            title="Daily Goal"
+            className="flex items-center gap-1.5 rounded-full bg-ink-800 border border-ink-700 px-3 py-1 text-xs text-stone-300 hover:bg-ink-700 transition-colors cursor-pointer"
+            title="Configure daily practice goal"
           >
-            <Settings size={16} />
+            <Target size={13} className={isGoalReached ? 'text-emerald-400' : 'text-ocean-400'} />
+            <span className="hidden sm:inline font-medium">{percent}%</span>
           </button>
 
-          {/* Review button */}
+          {/* Language selector in voice check mode */}
+          {mode === 'lesson' && (
+            <div className="flex items-center gap-1 bg-ink-900 rounded-full p-0.5 border border-ink-800">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setSelectedLang(lang.code)
+                    setCurrentPhraseIdx(0)
+                    setPhase('listen')
+                    const langLessons = getLessonsByLang(lang.code)
+                    if (langLessons[0]) selectLesson(langLessons[0].id)
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                    selectedLang === lang.code
+                      ? 'bg-ocean-500 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                >
+                  <span className="mr-1">{lang.flag}</span>
+                  <span className="hidden sm:inline">{lang.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {reviewItems.length > 0 && mode === 'lesson' && (
             <button
               onClick={startReview}
               className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition-all hover:bg-red-500/20 cursor-pointer"
-              title={`${reviewItems.length} phrases to review`}
             >
-              <Target size={14} />
+              <RotateCcw size={14} />
               <span className="hidden sm:inline">Review</span>
               <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full text-[10px]">{reviewItems.length}</span>
             </button>
@@ -579,103 +516,58 @@ export default function AppDashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 w-full"
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Target size={14} className={isGoalReached ? 'text-emerald-400' : 'text-ocean-400'} />
-                <span className="text-xs font-medium text-stone-400">
-                  Daily Goal: {progress.minutesDone}/{goal.minutes} min
-                </span>
-              </div>
-              <span className={`text-xs font-bold ${isGoalReached ? 'text-emerald-400' : 'text-ocean-400'}`}>
-                {isGoalReached ? '✓ Done!' : `${percent}%`}
+            <div className="flex items-center justify-between text-xs text-stone-400 mb-1.5">
+              <span className="flex items-center gap-1.5 font-medium text-stone-300">
+                <Target size={13} className="text-ocean-400" />
+                Daily Practice Goal
               </span>
+              <span>{progress.minutesDone} / {goal.minutes} min ({percent}%)</span>
             </div>
-            <div className="h-2.5 w-full rounded-full bg-ink-700 overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-ink-800 overflow-hidden">
               <motion.div
-                className={`h-full rounded-full ${
-                  isGoalReached 
-                    ? 'bg-gradient-to-r from-emerald-400 to-teal-400' 
-                    : 'bg-gradient-to-r from-ocean-400 to-cyan-400'
-                }`}
+                className={`h-full rounded-full ${isGoalReached ? 'bg-gradient-to-r from-emerald-400 to-teal-400' : 'bg-gradient-to-r from-ocean-500 to-cyan-400'}`}
                 initial={{ width: 0 }}
                 animate={{ width: `${percent}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
               />
             </div>
-            {isGoalReached && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mt-2 text-center"
-              >
-                <span className="text-xs font-medium text-emerald-400">
-                  🎉 Goal reached! Great consistency!
-                </span>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Mode badge */}
-        {mode === 'review' && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 flex items-center gap-2 rounded-full bg-red-500/10 border border-red-500/20 px-4 py-1.5"
-          >
-            <Target size={14} className="text-red-400" />
-            <span className="text-xs font-medium text-red-300">Review Mode</span>
-            <span className="text-xs text-red-400/70">{reviewItems.length} phrases</span>
-          </motion.div>
-        )}
-
-        {mode === 'lesson' && currentLesson && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 flex items-center gap-2 rounded-full bg-ink-800/60 border border-ink-700/50 px-4 py-1.5"
-          >
-            <span className="text-xs text-stone-400">{currentLesson.level}</span>
-            <span className="text-xs text-stone-600">•</span>
-            <span className="text-xs font-medium text-ocean-300">{currentLesson.title}</span>
           </motion.div>
         )}
 
         {/* Progress dots */}
         <div className="mb-8 flex items-center gap-2">
-          {phrases.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                i === currentPhraseIdx ? 'w-8 bg-ocean-400' : i < currentPhraseIdx ? 'w-1.5 bg-ocean-600' : 'w-1.5 bg-ink-600'
+          {phrases.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                stopSpeech()
+                setCurrentPhraseIdx(idx)
+                setPhase('listen')
+              }}
+              className={`h-2 rounded-full transition-all cursor-pointer ${
+                idx === currentPhraseIdx 
+                  ? 'w-8 bg-ocean-400' 
+                  : idx < currentPhraseIdx 
+                  ? 'w-2 bg-ocean-400/40' 
+                  : 'w-2 bg-ink-800'
               }`}
             />
           ))}
         </div>
 
-        {/* Phrase counter */}
-        {currentLesson && mode === 'lesson' && (
-          <div className="mb-4 text-xs text-stone-500 font-medium">
-            Phrase {currentPhraseIdx + 1} of {phrases.length}
-          </div>
-        )}
-
-        {/* Audio Visualizer */}
-        <AudioVisualizer isRecording={isRecording} />
-
-        {/* Phrase card */}
+        {/* Practice Card */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={phrase.text + mode + currentPhraseIdx}
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.98 }}
-            transition={{ duration: 0.4 }}
-            className="w-full rounded-3xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-6 md:p-10 text-center shadow-2xl shadow-black/20 relative"
+            key={`${mode}-${currentPhraseIdx}`}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.3 }}
+            className="relative w-full rounded-3xl border border-ink-800 bg-ink-900/60 backdrop-blur-xl p-8 text-center shadow-2xl"
           >
-            {/* Audio speed controls & quick replay button */}
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-1 bg-ink-900/70 rounded-full p-1 border border-ink-700/60">
+            {/* Speed control & audio button */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-1 bg-ink-800/80 rounded-full p-1 border border-ink-700/50">
                 <button
                   onClick={() => {
                     setPlaybackRate(0.75)
@@ -774,8 +666,13 @@ export default function AppDashboard() {
           </motion.div>
         </AnimatePresence>
 
+        {/* Audio Visualizer during recording */}
+        {isRecording && (
+          <AudioVisualizer isRecording={isRecording} volume={currentVolume} />
+        )}
+
         {/* Record button */}
-        <div className="mt-10 flex flex-col items-center gap-4">
+        <div className="mt-8 flex flex-col items-center gap-4">
           <motion.button
             onClick={handleRecordToggle}
             whileHover={{ scale: 1.06 }}
@@ -801,7 +698,7 @@ export default function AppDashboard() {
             {isRecording ? (
               <span className="flex items-center gap-2 text-red-300">
                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                Recording... Tap when finished
+                Recording voice... Tap when finished
               </span>
             ) : phase === 'result' ? (
               'Tap to re-record'
@@ -868,11 +765,11 @@ export default function AppDashboard() {
                     </button>
                     <span className="flex items-center gap-1.5 text-stone-400">
                       <span className="h-0.5 w-4 bg-ocean-400 rounded-full" />
-                      Native
+                      Target
                     </span>
                     <span className="flex items-center gap-1.5 text-stone-400">
                       <span className="h-0.5 w-4 bg-cyan-400 rounded-full" />
-                      You
+                      Your Voice
                     </span>
                   </div>
                 </div>
@@ -912,7 +809,7 @@ export default function AppDashboard() {
                     <Sparkles size={16} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-ocean-200 mb-1">AI Pronunciation Diagnosis</h4>
+                    <h4 className="text-sm font-semibold text-ocean-200 mb-1">Acoustic Pronunciation Diagnosis</h4>
                     <p className="text-sm text-stone-400 leading-relaxed">
                       {currentScores.feedback}
                     </p>
@@ -938,12 +835,87 @@ export default function AppDashboard() {
             <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          {t('voiceCheck.privacy')}
+          <span>Voice data is processed entirely in your browser. No audio recordings leave your device.</span>
         </div>
       </div>
 
-      {/* Daily Goal Setup Modal */}
-      <DailyGoalSetup open={showSetup} onSelect={setGoal} onClose={() => setShowSetup(false)} />
+      {/* Lesson Complete Modal */}
+      <AnimatePresence>
+        {showComplete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md rounded-3xl border border-ink-800 bg-ink-900 p-6 text-center shadow-2xl"
+            >
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30 mb-4">
+                <Trophy size={32} />
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-1">
+                {mode === 'review' ? 'Review Complete!' : 'Lesson Complete!'}
+              </h3>
+              <p className="text-sm text-stone-400 mb-6">
+                {mode === 'review' 
+                  ? `Great work reviewing your tricky tone patterns.`
+                  : `You finished "${currentLesson?.title || 'Daily Session'}". Progress saved!`}
+              </p>
+
+              {/* Notification opt-in prompt */}
+              {!notifEnabled && (
+                <div className="mb-6 rounded-2xl bg-ink-800/80 p-4 text-left border border-ink-700">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ocean-500/20 text-ocean-400">
+                      <Bell size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs font-semibold text-white">Daily Practice Reminder</div>
+                      <div className="text-[11px] text-stone-400 mt-0.5">
+                        Get a gentle notification at your preferred time to maintain your streak.
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const ok = await requestNotificationPermission()
+                          if (ok) setNotifEnabled(true)
+                        }}
+                        className="mt-2 text-xs font-medium text-ocean-400 hover:text-ocean-300 transition-colors cursor-pointer"
+                      >
+                        Enable reminders →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setShowComplete(false)
+                    setCurrentPhraseIdx(0)
+                    setPhase('listen')
+                  }}
+                  className="w-full rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 hover:shadow-xl transition-all cursor-pointer"
+                >
+                  Practice Again
+                </button>
+                <button
+                  onClick={() => navigate('/path')}
+                  className="w-full rounded-xl bg-ink-800 py-3 text-sm font-medium text-stone-300 hover:bg-ink-700 hover:text-white transition-colors cursor-pointer"
+                >
+                  Choose Next Lesson
+                </button>
+                <button
+                  onClick={() => navigate('/profile')}
+                  className="w-full py-2 text-xs text-stone-400 hover:text-stone-200 transition-colors cursor-pointer"
+                >
+                  View Full Analytics
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

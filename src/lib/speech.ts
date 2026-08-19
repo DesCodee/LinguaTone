@@ -7,6 +7,17 @@ const LANG_MAP: Record<string, string> = {
 }
 
 let currentUtterance: SpeechSynthesisUtterance | null = null
+let cachedVoices: SpeechSynthesisVoice[] = []
+
+// Eagerly preload voices to prevent initial delay on Chrome / Safari
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  cachedVoices = window.speechSynthesis.getVoices()
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      cachedVoices = window.speechSynthesis.getVoices()
+    }
+  }
+}
 
 export interface SpeakOptions {
   rate?: number // e.g. 0.85 for slow/clear or 1.0 for normal
@@ -34,7 +45,7 @@ export function stopSpeech(): void {
 function findBestVoice(langCode: string): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
 
-  const voices = window.speechSynthesis.getVoices()
+  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices()
   if (!voices || voices.length === 0) return null
 
   const targetPrefix = langCode.toLowerCase().replace('_', '-')
@@ -76,9 +87,8 @@ export function speakText(
   }
 
   try {
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel()
-    }
+    // Immediate cancel to clear any pending queue
+    window.speechSynthesis.cancel()
 
     const targetLang = LANG_MAP[lang] || lang || 'zh-CN'
     const utterance = new SpeechSynthesisUtterance(text)
@@ -92,7 +102,9 @@ export function speakText(
       utterance.voice = bestVoice
     }
 
+    let started = false
     utterance.onstart = () => {
+      started = true
       options.onStart?.()
     }
 
@@ -104,17 +116,22 @@ export function speakText(
     }
 
     utterance.onerror = (e) => {
-      console.warn('SpeechSynthesis error:', e)
       if (currentUtterance === utterance) {
         currentUtterance = null
       }
-      options.onError?.(e)
-      options.onEnd?.()
+      if (!started) {
+        // Fallback if browser speech synthesis fails
+        fallbackToneMelody(lang, options.onStart, options.onEnd)
+      } else {
+        options.onError?.(e)
+        options.onEnd?.()
+      }
     }
 
     currentUtterance = utterance
     window.speechSynthesis.speak(utterance)
 
+    // Un-pause chrome background freeze
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume()
     }
