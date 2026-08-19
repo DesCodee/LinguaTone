@@ -339,20 +339,23 @@ export default function AppDashboard() {
           playSuccessChime()
         }
 
-        saveSessionToStorage({
-          id: crypto.randomUUID(),
-          date: new Date().toISOString(),
-          phrase: phrase.text,
-          lang: phrase.lang,
-          scores: {
-            tones: evalResult.tones,
-            sounds: evalResult.sounds,
-            rhythm: evalResult.rhythm,
-            overall: evalResult.overall,
-          },
-          mistakes: evalResult.mistakes,
-        })
-        addSessionTime(Math.max(1, Math.round(recordingResult.duration / 60) || 1))
+        // Only save real speech attempts to stats
+        if (!evalResult.isSilent && evalResult.overall > 0) {
+          saveSessionToStorage({
+            id: crypto.randomUUID(),
+            date: new Date().toISOString(),
+            phrase: phrase.text,
+            lang: phrase.lang,
+            scores: {
+              tones: evalResult.tones,
+              sounds: evalResult.sounds,
+              rhythm: evalResult.rhythm,
+              overall: evalResult.overall,
+            },
+            mistakes: evalResult.mistakes,
+          })
+          addSessionTime(Math.max(1, Math.round(recordingResult.duration / 60) || 1))
+        }
       }
     } else {
       startRecording()
@@ -724,20 +727,38 @@ export default function AppDashboard() {
               <div className="flex items-center justify-between rounded-2xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-6">
                 <div>
                   <div className="text-sm text-stone-400 mb-1">Pronunciation Score</div>
-                  <div className="text-5xl font-bold text-white tracking-tight">
-                    {currentScores.overall}<span className="text-2xl text-stone-500 font-normal">/100</span>
-                  </div>
-                  <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1 text-xs font-medium text-ocean-300">
-                    <Sparkles size={12} />
-                    {currentScores.overall >= 80 ? 'Excellent pronunciation!' : 'Good effort! Refine tone pitch.'}
-                  </div>
+                  {currentScores.overall === 0 ? (
+                    <div>
+                      <div className="text-3xl font-bold text-amber-400 tracking-tight">
+                        No voice heard
+                      </div>
+                      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-xs font-medium text-amber-300">
+                        <Mic size={12} />
+                        Speak clearly into the microphone
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-5xl font-bold text-white tracking-tight">
+                        {currentScores.overall}<span className="text-2xl text-stone-500 font-normal">/100</span>
+                      </div>
+                      <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                        currentScores.overall >= 80
+                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+                          : 'bg-ocean-500/10 border border-ocean-500/20 text-ocean-300'
+                      }`}>
+                        <Sparkles size={12} />
+                        {currentScores.overall >= 80 ? 'Excellent pronunciation!' : 'Good effort! Refine tone pitch.'}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="relative h-24 w-24 shrink-0">
                   <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
                     <path className="text-ink-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
                     <motion.path 
-                      className="text-ocean-400" 
+                      className={currentScores.overall === 0 ? 'text-amber-500/30' : currentScores.overall >= 80 ? 'text-emerald-400' : 'text-ocean-400'} 
                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
                       fill="none" 
                       stroke="currentColor" 
@@ -749,7 +770,7 @@ export default function AppDashboard() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">{currentScores.overall}</span>
+                    <span className="text-xl font-bold text-white">{currentScores.overall > 0 ? currentScores.overall : '—'}</span>
                   </div>
                 </div>
               </div>

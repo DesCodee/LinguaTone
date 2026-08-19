@@ -14,6 +14,7 @@ export interface AnalysisResult {
   mistakes: string[]
   userContour: PitchPoint[]
   nativeContour: PitchPoint[]
+  isSilent?: boolean
 }
 
 // Tone mapping dictionary for Pinyin
@@ -129,27 +130,31 @@ export function evaluatePronunciation(
   )
 
   // 1. Check if user actually spoke (Silence detection)
-  const voicedFrames = recordedPitches.filter((p) => p.volume > 0.015 && p.pitch > 60 && p.pitch < 600)
-  const avgVolume = recordedPitches.length > 0
-    ? recordedPitches.reduce((acc, p) => acc + p.volume, 0) / recordedPitches.length
+  // Voiced speech typically has volume > 0.025 and pitch between 75Hz and 500Hz with high harmonic clarity
+  const voicedFrames = recordedPitches.filter(
+    (p) => p.volume > 0.02 && p.pitch > 70 && p.pitch < 550 && p.clarity > 0.4
+  )
+  const maxVolume = recordedPitches.length > 0
+    ? Math.max(...recordedPitches.map((p) => p.volume))
     : 0
 
-  if (voicedFrames.length < 5 || avgVolume < 0.012 || durationSeconds < 0.3) {
-    // Silence or too brief
+  if (voicedFrames.length < 8 || maxVolume < 0.025 || durationSeconds < 0.4) {
+    // Silence, background noise, or no vocalization
     const userContour = Array.from({ length: 100 }, (_, i) => ({
       x: i / 99,
-      y: 0.2 + (Math.random() - 0.5) * 0.05,
+      y: 0.1,
     }))
 
     return {
-      tones: 32,
-      sounds: 35,
-      rhythm: 40,
-      overall: 35,
-      feedback: 'Low microphone signal or silence detected. Please speak closer to the mic.',
-      mistakes: ['Insufficient vocal volume', 'Unvoiced speech'],
+      tones: 0,
+      sounds: 0,
+      rhythm: 0,
+      overall: 0,
+      feedback: 'No vocal audio detected. Please speak clearly into your microphone.',
+      mistakes: ['Silence or unvoiced audio', 'Microphone signal too weak'],
       userContour,
       nativeContour,
+      isSilent: true,
     }
   }
 
@@ -157,7 +162,7 @@ export function evaluatePronunciation(
   const rawPitches = voicedFrames.map((f) => f.pitch)
   const minPitch = Math.min(...rawPitches)
   const maxPitch = Math.max(...rawPitches)
-  const pitchRange = maxPitch - minPitch || 50
+  const pitchRange = maxPitch - minPitch || 40
 
   const userContour: PitchPoint[] = []
   const step = voicedFrames.length / 100
@@ -165,9 +170,9 @@ export function evaluatePronunciation(
   for (let i = 0; i < 100; i++) {
     const frameIdx = Math.min(voicedFrames.length - 1, Math.floor(i * step))
     const frame = voicedFrames[frameIdx]
-    const normalizedPitch = (frame.pitch - minPitch) / pitchRange // 0 to 1
-    // Smooth pitch curve
-    const y = 0.2 + normalizedPitch * 0.65
+    const normalizedPitch = pitchRange > 15 ? (frame.pitch - minPitch) / pitchRange : 0.5
+    // Map normalized pitch smoothly
+    const y = 0.2 + normalizedPitch * 0.6
     userContour.push({ x: i / 99, y: Math.max(0.1, Math.min(0.95, y)) })
   }
 
@@ -187,24 +192,24 @@ export function evaluatePronunciation(
     }
   }
 
-  const avgDiff = sumDiff / 100 // usually between 0.05 (near perfect) and 0.45 (far)
+  const avgDiff = sumDiff / 100 // 0.05 (near perfect) to 0.5 (far)
   const slopeAccuracy = directionalMatches / 99 // 0 to 1
 
   // Score Calculations
   const toneScore = Math.round(
-    Math.max(45, Math.min(98, 100 - avgDiff * 110 + slopeAccuracy * 25))
+    Math.max(40, Math.min(99, 102 - avgDiff * 115 + slopeAccuracy * 22))
   )
 
   const avgClarity = voicedFrames.reduce((acc, f) => acc + (f.clarity || 0.7), 0) / voicedFrames.length
   const soundScore = Math.round(
-    Math.max(50, Math.min(99, 70 + avgClarity * 22 + (avgVolume > 0.03 ? 6 : 0)))
+    Math.max(45, Math.min(99, 65 + avgClarity * 28 + (maxVolume > 0.05 ? 6 : 0)))
   )
 
   // Expected duration based on syllable count
   const expectedSyllableCount = targetPhrase.text.length || 3
   const expectedDuration = expectedSyllableCount * 0.45 + 0.4 // seconds
   const durationRatio = Math.min(durationSeconds, expectedDuration) / Math.max(durationSeconds, expectedDuration)
-  const rhythmScore = Math.round(Math.max(55, Math.min(97, 65 + durationRatio * 32)))
+  const rhythmScore = Math.round(Math.max(50, Math.min(98, 60 + durationRatio * 38)))
 
   const overall = Math.round(toneScore * 0.45 + soundScore * 0.3 + rhythmScore * 0.25)
 
@@ -212,15 +217,15 @@ export function evaluatePronunciation(
   const mistakes: string[] = []
   let feedback = ''
 
-  if (toneScore < 72) {
+  if (toneScore < 70) {
     mistakes.push('Tone pitch contour variance')
     feedback = targetPhrase.lang === 'zh'
       ? 'Focus on the pitch inflection slope — listen to the native model again and match the rise/drop.'
       : 'Pitch accent deviated from native cadence. Try maintaining steady pitch transitions.'
-  } else if (soundScore < 75) {
-    mistakes.push('Vowel clarity / aspiration')
+  } else if (soundScore < 72) {
+    mistakes.push('Vowel clarity / articulation')
     feedback = 'Good tone inflection! Focus on crisper vowel articulation and breath control.'
-  } else if (rhythmScore < 75) {
+  } else if (rhythmScore < 72) {
     mistakes.push('Speech tempo & pacing')
     feedback = durationSeconds > expectedDuration * 1.5
       ? 'Pronunciation was accurate but a bit slow. Try linking the syllables smoothly.'
@@ -238,5 +243,6 @@ export function evaluatePronunciation(
     mistakes,
     userContour,
     nativeContour,
+    isSilent: false,
   }
 }
