@@ -37,11 +37,11 @@ export default function Footer() {
 
           <div className="flex items-center gap-4">
             <a 
-              href="https://instagram.com/linguatone" 
+              href="https://www.instagram.com/linguatoneapp?igsh=aDBsd3ltbjA1eGlh" 
               target="_blank" 
               rel="noreferrer"
               className="text-stone-400 transition-colors hover:text-pink-500"
-              title="Instagram @LinguaTone"
+              title="Instagram @linguatoneapp"
             >
               <Instagram size={18} />
             </a>

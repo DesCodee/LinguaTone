@@ -47,7 +47,7 @@ export default function CommunityBlog() {
 
         {/* Instagram CTA Card */}
         <a
-          href="https://instagram.com/linguatone"
+          href="https://www.instagram.com/linguatoneapp?igsh=aDBsd3ltbjA1eGlh"
           target="_blank"
           rel="noreferrer"
           className="group inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 p-[1px] shadow-lg shadow-rose-500/20 transition-all hover:scale-[1.02] cursor-pointer"
@@ -58,7 +58,7 @@ export default function CommunityBlog() {
             </div>
             <div className="text-left">
               <div className="text-xs font-bold text-ink-900 flex items-center gap-1">
-                Follow @LinguaTone
+                Follow @linguatoneapp
                 <ExternalLink size={12} className="text-stone-400 group-hover:text-pink-500 transition-colors" />
               </div>
               <div className="text-[11px] text-stone-500">Daily tone drills & micro-lessons</div>

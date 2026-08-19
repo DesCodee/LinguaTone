@@ -86,11 +86,11 @@ export default function Header() {
         <div className="hidden items-center gap-2.5 md:flex">
           {/* Instagram direct icon */}
           <a
-            href="https://instagram.com/linguatone"
+            href="https://www.instagram.com/linguatoneapp?igsh=aDBsd3ltbjA1eGlh"
             target="_blank"
             rel="noreferrer"
             className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-pink-50 hover:text-pink-600 cursor-pointer"
-            title="Follow on Instagram"
+            title="Follow @linguatoneapp on Instagram"
           >
             <Instagram size={18} />
           </a>
@@ -191,13 +191,13 @@ export default function Header() {
               ))}
 
               <a
-                href="https://instagram.com/linguatone"
+                href="https://www.instagram.com/linguatoneapp?igsh=aDBsd3ltbjA1eGlh"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-pink-600 hover:bg-pink-50 transition-colors cursor-pointer"
               >
                 <Instagram size={16} />
-                Instagram @LinguaTone
+                Instagram @linguatoneapp
               </a>
 
               <div className="my-2 border-t border-ocean-100 pt-2">

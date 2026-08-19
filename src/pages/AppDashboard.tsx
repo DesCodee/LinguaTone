@@ -15,7 +15,7 @@ import { useReview } from '../hooks/useReview'
 import { useDailyGoal } from '../hooks/useDailyGoal'
 import { lessons, getLessonsByLang } from '../data/lessons'
 import { requestNotificationPermission } from '../lib/notifications'
-import { speakText, stopSpeech } from '../lib/speech'
+import { speakText, stopSpeech, playSuccessChime } from '../lib/speech'
 import DailyGoalSetup from '../components/DailyGoalSetup'
 
 // ===== Confetti particles =====
@@ -314,6 +314,9 @@ export default function AppDashboard() {
       const feedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
       const scores = { tones, sounds, rhythm, overall, feedback }
       setCurrentScores(scores)
+      if (overall >= 80) {
+        playSuccessChime()
+      }
 
       if (phrase) {
         saveSessionToStorage({
@@ -339,6 +342,7 @@ export default function AppDashboard() {
     if (nextIdx >= phrases.length) {
       if (mode === 'lesson' && currentLesson) markComplete(currentLesson.id)
       setShowComplete(true)
+      playSuccessChime()
       if (progress.sessionsCount === 0 && !notifEnabled) {
         requestNotificationPermission().then((granted) => {
           if (granted) setNotifEnabled(true)

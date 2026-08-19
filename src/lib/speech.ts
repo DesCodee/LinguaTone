@@ -1,4 +1,4 @@
-// Speech Synthesis Engine for CJK Pronunciation Playback
+// Speech Synthesis & Acoustic Audio Engine for CJK Pronunciation Playback
 
 const LANG_MAP: Record<string, string> = {
   zh: 'zh-CN',
@@ -173,5 +173,39 @@ function fallbackToneMelody(
     })
   } catch {
     onEnd?.()
+  }
+}
+
+// Success chime on completing lessons or great tone pronunciation
+export function playSuccessChime(): void {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const now = ctx.currentTime
+    const notes = [523.25, 659.25, 783.99, 1046.5] // C5, E5, G5, C6 arpeggio
+
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(freq, now + i * 0.09)
+
+      gain.gain.setValueAtTime(0, now + i * 0.09)
+      gain.gain.linearRampToValueAtTime(0.12, now + i * 0.09 + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.3)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      osc.start(now + i * 0.09)
+      osc.stop(now + i * 0.09 + 0.35)
+    })
+
+    setTimeout(() => {
+      ctx.close()
+    }, 800)
+  } catch {
+    // ignore
   }
 }
