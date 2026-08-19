@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Check, Zap, Crown } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export default function Pricing() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const freeFeatures = t('pricing.free.features', { returnObjects: true }) as string[]
   const premiumFeatures = t('pricing.premium.features', { returnObjects: true }) as string[]
@@ -62,7 +64,10 @@ export default function Pricing() {
                 </li>
               ))}
             </ul>
-            <button className="mt-8 w-full rounded-xl border-2 border-ocean-200 bg-ocean-50/50 py-3 text-sm font-semibold text-ocean-700 transition-all hover:bg-ocean-100 hover:border-ocean-300">
+            <button
+              onClick={() => navigate('/app')}
+              className="mt-8 w-full rounded-xl border-2 border-ocean-200 bg-ocean-50/50 py-3 text-sm font-semibold text-ocean-700 transition-all hover:bg-ocean-100 hover:border-ocean-300 cursor-pointer"
+            >
               {t('pricing.free.cta')}
             </button>
           </motion.div>
@@ -102,7 +107,10 @@ export default function Pricing() {
                 </li>
               ))}
             </ul>
-            <button className="mt-8 w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/35 hover:-translate-y-0.5 active:translate-y-0">
+            <button
+              onClick={() => navigate('/app')}
+              className="mt-8 w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/35 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            >
               {t('pricing.premium.cta')}
             </button>
           </motion.div>

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User, Map } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 
 const languages = [
   { code: 'en', label: 'English', flag: '🇺🇸' },
@@ -11,15 +12,15 @@ const languages = [
 
 const navItems = [
   { key: 'features', href: '#features' },
-  { key: 'practice', href: '#practice' },
-  { key: 'tools', href: '#tools' },
-  { key: 'hsk', href: '#hsk' },
-  { key: 'freeTest', href: '#test' },
-  { key: 'blog', href: '#blog' },
+  { key: 'practice', href: '#how-it-works' },
+  { key: 'tools', href: '#features' },
+  { key: 'hsk', href: '/path' },
+  { key: 'freeTest', href: '/app' },
 ]
 
 export default function Header() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -41,6 +42,20 @@ export default function Header() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const handleNavClick = (href: string) => {
+    setMobileOpen(false)
+    if (href.startsWith('#')) {
+      const el = document.querySelector(href)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' })
+      } else {
+        navigate('/' + href)
+      }
+    } else {
+      navigate(href)
+    }
+  }
+
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${
       scrolled 
@@ -58,13 +73,13 @@ export default function Header() {
 
         <nav className="hidden items-center gap-0.5 md:flex">
           {navItems.map((item) => (
-            <a
+            <button
               key={item.key}
-              href={item.href}
-              className="relative rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60"
+              onClick={() => handleNavClick(item.href)}
+              className="relative rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60 cursor-pointer"
             >
               {t(`header.${item.key}`)}
-            </a>
+            </button>
           ))}
         </nav>
 
@@ -72,7 +87,7 @@ export default function Header() {
           <div className="relative" ref={langRef}>
             <button
               onClick={() => setLangOpen(!langOpen)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60 cursor-pointer"
             >
               <Globe size={14} />
               {languages.find((l) => l.code === i18n.language)?.label || 'English'}
@@ -94,7 +109,7 @@ export default function Header() {
                         i18n.changeLanguage(lang.code)
                         setLangOpen(false)
                       }}
-                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] transition-all hover:bg-ocean-50 ${
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] transition-all hover:bg-ocean-50 cursor-pointer ${
                         i18n.language === lang.code ? 'font-semibold text-ocean-600' : 'text-stone-600'
                       }`}
                     >
@@ -110,33 +125,33 @@ export default function Header() {
             </AnimatePresence>
           </div>
 
-          <a
-            href="/path"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+          <button
+            onClick={() => navigate('/path')}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
             title="Learning Path"
           >
             <Map size={18} />
-          </a>
+          </button>
 
-          <a
-            href="/profile"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600"
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
             title="Profile"
           >
             <User size={18} />
-          </a>
+          </button>
 
-          <a
-            href="/app"
-            className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/30 hover:-translate-y-0.5 active:translate-y-0"
+          <button
+            onClick={() => navigate('/app')}
+            className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/30 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
             <Mic size={14} strokeWidth={2.5} />
             {t('header.openApp')}
-          </a>
+          </button>
         </div>
 
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-600 transition-colors hover:bg-ocean-50 md:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-600 transition-colors hover:bg-ocean-50 md:hidden cursor-pointer"
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -154,14 +169,13 @@ export default function Header() {
           >
             <div className="space-y-0.5 px-4 py-3">
               {navItems.map((item) => (
-                <a
+                <button
                   key={item.key}
-                  href={item.href}
-                  className="block rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => handleNavClick(item.href)}
+                  className="block w-full text-left rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
                 >
                   {t(`header.${item.key}`)}
-                </a>
+                </button>
               ))}
               <div className="my-2 border-t border-ocean-100 pt-2">
                 {languages.map((lang) => (
@@ -171,7 +185,7 @@ export default function Header() {
                       i18n.changeLanguage(lang.code)
                       setMobileOpen(false)
                     }}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm ${
+                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm cursor-pointer ${
                       i18n.language === lang.code ? 'font-semibold text-ocean-600' : 'text-stone-600'
                     }`}
                   >
@@ -180,27 +194,33 @@ export default function Header() {
                   </button>
                 ))}
               </div>
-              <a
-                href="/path"
-                className="block rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600"
-                onClick={() => setMobileOpen(false)}
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('/path')
+                }}
+                className="block w-full text-left rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
               >
                 Learning Path
-              </a>
-              <a
-                href="/profile"
-                className="block rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600"
-                onClick={() => setMobileOpen(false)}
+              </button>
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('/profile')
+                }}
+                className="block w-full text-left rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
               >
                 Profile
-              </a>
-              <a
-                href="/app"
-                className="mt-2 block w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-2.5 text-center text-sm font-semibold text-white"
-                onClick={() => setMobileOpen(false)}
+              </button>
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('/app')
+                }}
+                className="mt-2 block w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-2.5 text-center text-sm font-semibold text-white cursor-pointer"
               >
                 {t('header.openApp')}
-              </a>
+              </button>
             </div>
           </motion.div>
         )}

@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Mic, ArrowRight, Play, Waves } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 const languages = [
-  { flag: '🇨🇳', key: 'chinese', meta: '4 tones', gradient: 'from-red-400/20 to-red-500/5', border: 'border-red-200/60', icon: '🎵' },
-  { flag: '🇯🇵', key: 'japanese', meta: 'pitch accent', gradient: 'from-rose-400/20 to-rose-500/5', border: 'border-rose-200/60', icon: '🎌' },
-  { flag: '🇰🇷', key: 'korean', meta: 'vowel length', gradient: 'from-blue-400/20 to-blue-500/5', border: 'border-blue-200/60', icon: '🔷' },
+  { flag: '🇨🇳', key: 'chinese', langCode: 'zh', meta: '4 tones', gradient: 'from-red-400/20 to-red-500/5', border: 'border-red-200/60', icon: '🎵' },
+  { flag: '🇯🇵', key: 'japanese', langCode: 'ja', meta: 'pitch accent', gradient: 'from-rose-400/20 to-rose-500/5', border: 'border-rose-200/60', icon: '🎌' },
+  { flag: '🇰🇷', key: 'korean', langCode: 'ko', meta: 'vowel length', gradient: 'from-blue-400/20 to-blue-500/5', border: 'border-blue-200/60', icon: '🔷' },
 ]
 
 const stats = [
@@ -25,6 +26,14 @@ const floatingElements = [
 
 export default function Hero() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+
+  const scrollToHowItWorks = () => {
+    const el = document.getElementById('how-it-works')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   return (
     <section className="relative mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-6 md:pt-16 overflow-hidden">
@@ -126,9 +135,9 @@ export default function Hero() {
             transition={{ duration: 0.5, delay: 0.35 }}
             className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:justify-start"
           >
-            <a
-              href="/app"
-              className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-ocean-450 to-cyan-500 px-7 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-ocean-400/30 transition-all hover:shadow-xl hover:shadow-ocean-400/40 hover:-translate-y-0.5 active:translate-y-0"
+            <button
+              onClick={() => navigate('/app')}
+              className="group inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-ocean-450 to-cyan-500 px-7 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-ocean-400/30 transition-all hover:shadow-xl hover:shadow-ocean-400/40 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
             >
               <Mic size={18} strokeWidth={2.5} />
               {t('hero.cta')}
@@ -137,8 +146,11 @@ export default function Hero() {
                 className="transition-transform group-hover:translate-x-1"
                 strokeWidth={2.5}
               />
-            </a>
-            <button className="group inline-flex items-center gap-2 rounded-full border border-ocean-200 bg-white/60 px-6 py-3.5 text-[15px] font-medium text-ocean-700 transition-all hover:bg-ocean-50 hover:border-ocean-300">
+            </button>
+            <button
+              onClick={scrollToHowItWorks}
+              className="group inline-flex items-center gap-2 rounded-full border border-ocean-200 bg-white/60 px-6 py-3.5 text-[15px] font-medium text-ocean-700 transition-all hover:bg-ocean-50 hover:border-ocean-300 cursor-pointer"
+            >
               <Play size={16} fill="currentColor" className="text-ocean-500" />
               Watch demo
             </button>
@@ -172,7 +184,7 @@ export default function Hero() {
           <div className="relative rounded-3xl bg-gradient-to-br from-white to-ocean-50 p-6 shadow-xl shadow-ocean-900/8 border border-ocean-100/60">
             <div className="absolute -top-4 -right-4 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-lg shadow-ocean-400/20 border border-ocean-100">
               <div className="text-center">
-                <div className="text-xl font-bold text-ocean-600">??</div>
+                <div className="text-xl font-bold text-ocean-600">88</div>
                 <div className="text-[10px] font-medium text-stone-400">/100</div>
               </div>
             </div>
@@ -191,10 +203,13 @@ export default function Hero() {
 
             <div className="text-center">
               <div className="text-sm font-semibold text-stone-700">What's holding back your Chinese?</div>
-              <div className="mt-1 text-xs text-stone-400">5 words · free · instant diagnosis</div>
+              <div className="mt-1 text-xs text-stone-400">Instant AI Tone & Pitch Diagnosis · Free</div>
             </div>
 
-            <button className="mt-4 w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-ocean-400/20 transition-all hover:shadow-lg">
+            <button
+              onClick={() => navigate('/app')}
+              className="mt-4 w-full rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-ocean-400/20 transition-all hover:shadow-lg hover:scale-[1.01] active:scale-95 cursor-pointer"
+            >
               Diagnose My Pronunciation →
             </button>
           </div>
@@ -230,9 +245,10 @@ export default function Hero() {
         {languages.map((lang) => (
           <motion.button
             key={lang.key}
+            onClick={() => navigate('/path')}
             whileHover={{ y: -4, scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`group relative overflow-hidden rounded-2xl border ${lang.border} bg-gradient-to-br ${lang.gradient} p-6 text-center transition-shadow hover:shadow-lg hover:shadow-ocean-900/5`}
+            className={`group relative overflow-hidden rounded-2xl border ${lang.border} bg-gradient-to-br ${lang.gradient} p-6 text-center transition-shadow hover:shadow-lg hover:shadow-ocean-900/5 cursor-pointer`}
           >
             <div className="absolute top-3 right-3 text-2xl opacity-20 group-hover:opacity-40 transition-opacity group-hover:scale-110">
               {lang.icon}

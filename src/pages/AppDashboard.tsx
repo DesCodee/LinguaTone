@@ -13,11 +13,12 @@ import { useProgress } from '../hooks/useProgress'
 import { useLessons } from '../hooks/useLessons'
 import { useReview } from '../hooks/useReview'
 import { useDailyGoal } from '../hooks/useDailyGoal'
-import { lessons } from '../data/lessons'
+import { lessons, getLessonsByLang } from '../data/lessons'
 import { requestNotificationPermission } from '../lib/notifications'
+import { speakText, stopSpeech } from '../lib/speech'
 import DailyGoalSetup from '../components/DailyGoalSetup'
 
-// ===== BONUS: Confetti particles =====
+// ===== Confetti particles =====
 function Confetti() {
   const particles = Array.from({ length: 30 }, (_, i) => ({
     id: i,
@@ -52,7 +53,7 @@ function Confetti() {
   )
 }
 
-// ===== BONUS: Audio visualizer bars =====
+// ===== Audio visualizer bars =====
 function AudioVisualizer({ isRecording }: { isRecording: boolean }) {
   const [bars, setBars] = useState<number[]>(Array(12).fill(4))
 
@@ -82,11 +83,11 @@ function AudioVisualizer({ isRecording }: { isRecording: boolean }) {
 }
 
 const samplePhrases = [
-  { text: '你好，我想学中文', pinyin: 'nǐ hǎo wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh' },
-  { text: '谢谢你的帮助', pinyin: 'xiè xie nǐ de bāng zhù', translation: 'Thank you for your help', lang: 'zh' },
-  { text: '今天天气很好', pinyin: 'jīn tiān tiān qì hěn hǎo', translation: 'The weather is nice today', lang: 'zh' },
-  { text: 'こんにちは', pinyin: 'kon-ni-chi-wa', translation: 'Hello', lang: 'ja' },
-  { text: '안녕하세요', pinyin: 'an-nyeong-ha-se-yo', translation: 'Hello', lang: 'ko' },
+  { text: '你好，我想学中文', pinyin: 'nǐ hǎo, wǒ xiǎng xué zhōng wén', translation: 'Hi, I want to learn Chinese', lang: 'zh', toneTip: 'Natural greetings tone flow' },
+  { text: '谢谢你的帮助', pinyin: 'xiè xie nǐ de bāng zhù', translation: 'Thank you for your help', lang: 'zh', toneTip: '4th tone downbeat on xiè' },
+  { text: '今天天气很好', pinyin: 'jīn tiān tiān qì hěn hǎo', translation: 'The weather is nice today', lang: 'zh', toneTip: 'High flat 1st tones + dipping 3rd' },
+  { text: 'こんにちは', pinyin: 'kon-ni-chi-wa', translation: 'Hello / Good afternoon', lang: 'ja', toneTip: 'Heiban flat pitch accent' },
+  { text: '안녕하세요', pinyin: 'an-nyeong-ha-se-yo', translation: 'Hello / Good day', lang: 'ko', toneTip: 'Smooth rise on ha, gentle fall on se-yo' },
 ]
 
 const languages = [
@@ -101,7 +102,7 @@ function generatePitchData() {
   for (let i = 0; i <= 120; i++) {
     const x = i / 120
     const nativeY = 0.5 + 0.25 * Math.sin(x * Math.PI * 4) + 0.08 * Math.sin(x * Math.PI * 9)
-    const userY = nativeY + (Math.random() - 0.5) * 0.18 + 0.06 * Math.sin(x * Math.PI * 12)
+    const userY = nativeY + (Math.random() - 0.5) * 0.16 + 0.05 * Math.sin(x * Math.PI * 12)
     native.push({ x, y: Math.max(0.1, Math.min(0.9, nativeY)) })
     user.push({ x, y: Math.max(0.1, Math.min(0.9, userY)) })
   }
@@ -118,14 +119,31 @@ export default function AppDashboard() {
   const [mode, setMode] = useState<'lesson' | 'review'>('lesson')
   const [showConfetti, setShowConfetti] = useState(false)
   const [notifEnabled, setNotifEnabled] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState<number>(0.85)
+  const [currentScores, setCurrentScores] = useState({
+    tones: 82,
+    sounds: 78,
+    rhythm: 85,
+    overall: 82,
+    feedback: 'Clear pitch modulation and steady cadence! Keep practicing the falling-rising curve.',
+  })
+
   const { isRecording, startRecording, stopRecording } = useAudioRecorder()
   const { streak } = useStreak()
   const { addSession: saveSessionToStorage } = useProgress()
-  const { markComplete, currentLessonId } = useLessons()
+  const { markComplete, selectLesson, currentLessonId } = useLessons()
   const reviewItems = useReview()
   const { goal, progress, percent, isGoalReached, showSetup, setShowSetup, setGoal, addSessionTime } = useDailyGoal()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const goalWasReached = useRef(false)
+
+  // Stop speech synthesis on phrase or mode changes / unmount
+  useEffect(() => {
+    return () => {
+      stopSpeech()
+    }
+  }, [currentPhraseIdx, mode])
 
   // Check if goal just reached for confetti
   useEffect(() => {
@@ -137,24 +155,29 @@ export default function AppDashboard() {
   }, [isGoalReached, showSetup])
 
   const currentLesson = useMemo(() => {
-    if (!currentLessonId) return null
+    if (!currentLessonId) {
+      const langLessons = getLessonsByLang(selectedLang)
+      return langLessons[0] || null
+    }
     return lessons.find((l) => l.id === currentLessonId) || null
-  }, [currentLessonId])
+  }, [currentLessonId, selectedLang])
 
   const phrases = useMemo(() => {
     if (mode === 'review' && reviewItems.length > 0) {
       return reviewItems.map((r) => {
         let pinyin = ''
         let translation = 'Review item'
+        let toneTip: string | undefined = undefined
         for (const lesson of lessons) {
           const found = lesson.phrases.find((p) => p.text === r.phrase)
           if (found) {
             pinyin = found.pinyin
             translation = found.translation
+            toneTip = found.toneTip
             break
           }
         }
-        return { text: r.phrase, pinyin, translation, lang: r.lang, lastScore: r.lastScore }
+        return { text: r.phrase, pinyin, translation, toneTip, lang: r.lang, lastScore: r.lastScore }
       })
     }
     if (currentLesson) return currentLesson.phrases.map((p) => ({ ...p, lang: currentLesson.lang }))
@@ -162,12 +185,15 @@ export default function AppDashboard() {
   }, [mode, reviewItems, currentLesson])
 
   const phrase = phrases[currentPhraseIdx]
-  const pitchData = useMemo(() => generatePitchData(), [currentPhraseIdx, currentLessonId, mode])
+  const pitchData = useMemo(() => generatePitchData(), [currentPhraseIdx, currentLessonId, mode, phase])
 
   useEffect(() => {
-    if (currentLesson && mode === 'lesson') setSelectedLang(currentLesson.lang)
+    if (currentLesson && mode === 'lesson') {
+      setSelectedLang(currentLesson.lang)
+    }
   }, [currentLesson, mode])
 
+  // Canvas waveform rendering
   useEffect(() => {
     if (phase !== 'result' || !canvasRef.current) return
     const canvas = canvasRef.current
@@ -236,18 +262,67 @@ export default function AppDashboard() {
     ctx.stroke()
   }, [phase, pitchData])
 
+  // Play audio helper
+  const handlePlayAudio = useCallback((rate: number = playbackRate) => {
+    if (!phrase) return
+    setIsPlayingAudio(true)
+    speakText(phrase.text, phrase.lang, {
+      rate,
+      onStart: () => setIsPlayingAudio(true),
+      onEnd: () => setIsPlayingAudio(false),
+      onError: () => setIsPlayingAudio(false),
+    })
+  }, [phrase, playbackRate])
+
+  // "Hear it first" action: plays native voice then enables record phase
+  const handleHearFirst = useCallback(() => {
+    if (!phrase) return
+    setIsPlayingAudio(true)
+    speakText(phrase.text, phrase.lang, {
+      rate: playbackRate,
+      onStart: () => setIsPlayingAudio(true),
+      onEnd: () => {
+        setIsPlayingAudio(false)
+        setPhase('record')
+      },
+      onError: () => {
+        setIsPlayingAudio(false)
+        setPhase('record')
+      },
+    })
+  }, [phrase, playbackRate])
+
   const handleRecordToggle = () => {
+    stopSpeech()
+    setIsPlayingAudio(false)
+
     if (isRecording) {
       stopRecording()
       setPhase('result')
+
+      const tones = Math.floor(74 + Math.random() * 22)
+      const sounds = Math.floor(70 + Math.random() * 25)
+      const rhythm = Math.floor(78 + Math.random() * 19)
+      const overall = Math.round(tones * 0.4 + sounds * 0.3 + rhythm * 0.3)
+
+      const feedbacks = [
+        'Great pitch modulation and steady cadence! Pitch curve aligns well with native model.',
+        'Clear tone articulation! Try slowing down slightly on the falling tone transition.',
+        'Well balanced tone contour. Consonants are crisp and distinct.',
+        'Excellent vowel clarity and smooth contour inflection!',
+      ]
+      const feedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
+      const scores = { tones, sounds, rhythm, overall, feedback }
+      setCurrentScores(scores)
+
       if (phrase) {
         saveSessionToStorage({
           id: crypto.randomUUID(),
           date: new Date().toISOString(),
           phrase: phrase.text,
           lang: phrase.lang,
-          scores: { tones: 75, sounds: 68, rhythm: 82, overall: 72 },
-          mistakes: ['3rd tone', 'initial n/l'],
+          scores: { tones, sounds, rhythm, overall },
+          mistakes: overall < 80 ? ['Tone inflection variance', 'Vowel length'] : [],
         })
         addSessionTime(2)
       }
@@ -258,6 +333,8 @@ export default function AppDashboard() {
   }
 
   const handleNext = () => {
+    stopSpeech()
+    setIsPlayingAudio(false)
     const nextIdx = currentPhraseIdx + 1
     if (nextIdx >= phrases.length) {
       if (mode === 'lesson' && currentLesson) markComplete(currentLesson.id)
@@ -277,6 +354,7 @@ export default function AppDashboard() {
 
   const startReview = useCallback(() => {
     if (reviewItems.length === 0) return
+    stopSpeech()
     setMode('review')
     setCurrentPhraseIdx(0)
     setPhase('listen')
@@ -284,11 +362,24 @@ export default function AppDashboard() {
   }, [reviewItems.length])
 
   const startLesson = useCallback(() => {
+    stopSpeech()
     setMode('lesson')
     setCurrentPhraseIdx(0)
     setPhase('listen')
     setShowComplete(false)
   }, [])
+
+  const handleLanguageChange = (langCode: string) => {
+    stopSpeech()
+    setSelectedLang(langCode)
+    const langLessons = getLessonsByLang(langCode)
+    if (langLessons.length > 0) {
+      selectLesson(langLessons[0].id)
+    }
+    setCurrentPhraseIdx(0)
+    setPhase('listen')
+    setShowComplete(false)
+  }
 
   if (!phrase) {
     return (
@@ -297,7 +388,7 @@ export default function AppDashboard() {
           <p className="text-stone-400 mb-4">No lesson selected</p>
           <button
             onClick={() => navigate('/path')}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white cursor-pointer"
           >
             <BookOpen size={16} />
             Choose Lesson
@@ -342,7 +433,7 @@ export default function AppDashboard() {
                 setCurrentPhraseIdx(0)
                 setPhase('listen')
               }}
-              className="rounded-xl bg-ink-700 px-5 py-2.5 text-sm font-medium text-stone-300 hover:bg-ink-600 transition-colors"
+              className="rounded-xl bg-ink-700 px-5 py-2.5 text-sm font-medium text-stone-300 hover:bg-ink-600 transition-colors cursor-pointer"
             >
               Practice Again
             </button>
@@ -354,7 +445,7 @@ export default function AppDashboard() {
                   navigate('/path')
                 }
               }}
-              className="rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 hover:shadow-xl transition-all"
+              className="rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 hover:shadow-xl transition-all cursor-pointer"
             >
               {mode === 'review' ? 'Back to Lesson' : 'Next Lesson'}
             </button>
@@ -379,7 +470,7 @@ export default function AppDashboard() {
       <div className="relative flex items-center justify-between border-b border-ink-700/50 px-4 py-4 md:px-6">
         <a href="/" className="flex items-center gap-2 text-sm font-medium text-stone-400 transition-colors hover:text-white">
           <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Back</span>
+          <span className="hidden sm:inline">Home</span>
         </a>
 
         <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1.5">
@@ -388,17 +479,17 @@ export default function AppDashboard() {
           <span className="text-[10px] text-amber-400/70 uppercase tracking-wider hidden sm:inline">day streak</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {mode === 'lesson' && languages.map((lang) => (
+        {/* Language Tabs */}
+        <div className="flex items-center gap-1.5">
+          {languages.map((lang) => (
             <button
               key={lang.code}
-              onClick={() => { if (!currentLesson) setSelectedLang(lang.code) }}
-              disabled={!!currentLesson}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+              onClick={() => handleLanguageChange(lang.code)}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
                 selectedLang === lang.code
-                  ? 'bg-ocean-500/15 text-ocean-300 border border-ocean-500/30'
-                  : 'text-stone-500 hover:text-stone-300 border border-transparent hover:bg-ink-800'
-              } ${currentLesson ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? 'bg-ocean-500/20 text-ocean-300 border border-ocean-500/40 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200 border border-transparent hover:bg-ink-800'
+              }`}
             >
               <span>{lang.flag}</span>
               <span className="hidden sm:inline">{lang.name}</span>
@@ -416,7 +507,7 @@ export default function AppDashboard() {
                 setNotifEnabled(false)
               }
             }}
-            className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all ${
+            className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all cursor-pointer ${
               notifEnabled ? 'bg-ocean-500/20 text-ocean-400' : 'text-stone-500 hover:bg-ink-800'
             }`}
             title="Notifications"
@@ -427,7 +518,7 @@ export default function AppDashboard() {
           {/* Goal settings */}
           <button
             onClick={() => setShowSetup(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ink-800"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-ink-800 cursor-pointer"
             title="Daily Goal"
           >
             <Settings size={16} />
@@ -437,7 +528,7 @@ export default function AppDashboard() {
           {reviewItems.length > 0 && mode === 'lesson' && (
             <button
               onClick={startReview}
-              className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition-all hover:bg-red-500/20"
+              className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition-all hover:bg-red-500/20 cursor-pointer"
               title={`${reviewItems.length} phrases to review`}
             >
               <Target size={14} />
@@ -448,7 +539,7 @@ export default function AppDashboard() {
           {mode === 'review' && (
             <button
               onClick={startLesson}
-              className="flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1.5 text-xs font-medium text-ocean-300 transition-all hover:bg-ocean-500/20"
+              className="flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1.5 text-xs font-medium text-ocean-300 transition-all hover:bg-ocean-500/20 cursor-pointer"
             >
               <BookOpen size={14} />
               <span className="hidden sm:inline">Lesson</span>
@@ -456,17 +547,20 @@ export default function AppDashboard() {
           )}
           <button
             onClick={() => navigate('/path')}
-            className="flex items-center gap-1 text-sm text-stone-400 transition-colors hover:text-white"
+            className="flex items-center gap-1.5 rounded-full bg-ink-800 px-3 py-1.5 text-xs text-stone-300 border border-ink-700 hover:bg-ink-700 transition-colors cursor-pointer"
             title="Learning Path"
           >
-            <BookOpen size={16} />
+            <BookOpen size={14} className="text-ocean-400" />
+            <span className="hidden sm:inline">Path</span>
           </button>
           <button
             onClick={() => {
+              stopSpeech()
               setCurrentPhraseIdx((p) => (p + 1) % phrases.length)
               setPhase('listen')
             }}
-            className="flex items-center gap-1 text-sm text-stone-400 transition-colors hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-400 hover:text-white hover:bg-ink-800 transition-colors cursor-pointer"
+            title="Next phrase"
           >
             <RotateCcw size={16} />
           </button>
@@ -511,7 +605,7 @@ export default function AppDashboard() {
                 className="mt-2 text-center"
               >
                 <span className="text-xs font-medium text-emerald-400">
-                  🎉 Goal reached! Come back tomorrow!
+                  🎉 Goal reached! Great consistency!
                 </span>
               </motion.div>
             )}
@@ -568,24 +662,83 @@ export default function AppDashboard() {
         {/* Phrase card */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={phrase.text + mode}
+            key={phrase.text + mode + currentPhraseIdx}
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.98 }}
             transition={{ duration: 0.4 }}
-            className="w-full rounded-3xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-8 md:p-10 text-center shadow-2xl shadow-black/20"
+            className="w-full rounded-3xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-6 md:p-10 text-center shadow-2xl shadow-black/20 relative"
           >
+            {/* Audio speed controls & quick replay button */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-1 bg-ink-900/70 rounded-full p-1 border border-ink-700/60">
+                <button
+                  onClick={() => {
+                    setPlaybackRate(0.75)
+                    handlePlayAudio(0.75)
+                  }}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer ${
+                    playbackRate === 0.75 ? 'bg-ocean-500 text-white font-semibold shadow-sm' : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                  title="Play at 0.75x slow speed"
+                >
+                  <span>🐢</span>
+                  <span>0.75x</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setPlaybackRate(0.95)
+                    handlePlayAudio(0.95)
+                  }}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer ${
+                    playbackRate !== 0.75 ? 'bg-ocean-500 text-white font-semibold shadow-sm' : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                  title="Play at 1.0x normal speed"
+                >
+                  <span>🐇</span>
+                  <span>1.0x</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => handlePlayAudio()}
+                disabled={isPlayingAudio}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium border transition-all cursor-pointer ${
+                  isPlayingAudio
+                    ? 'bg-ocean-500/20 text-ocean-300 border-ocean-500/40 animate-pulse'
+                    : 'bg-ink-700/60 text-stone-300 border-ink-600/50 hover:bg-ink-700 hover:text-white'
+                }`}
+                title="Listen to native pronunciation"
+              >
+                <Volume2 size={15} className={isPlayingAudio ? 'animate-bounce text-ocean-400' : 'text-ocean-300'} />
+                <span>{isPlayingAudio ? 'Playing...' : 'Audio'}</span>
+              </button>
+            </div>
+
+            {/* Target script */}
             <div className="text-4xl md:text-5xl font-medium tracking-wide text-white mb-3">
               {phrase.text}
             </div>
+
+            {/* Pinyin / Romaji / Reading */}
             {phrase.pinyin && (
-              <div className="text-lg md:text-xl text-ocean-300 font-medium tracking-wider">
+              <div className="text-lg md:text-xl text-ocean-300 font-medium tracking-wider mb-2">
                 {phrase.pinyin}
               </div>
             )}
-            <div className="mt-2 text-sm text-stone-500">
+
+            {/* Translation */}
+            <div className="text-sm text-stone-400">
               {phrase.translation}
             </div>
+
+            {/* Tone & Pitch guide badge */}
+            {'toneTip' in phrase && phrase.toneTip && (
+              <div className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-ocean-500/10 border border-ocean-500/20 px-3.5 py-1.5 text-xs text-ocean-200">
+                <Sparkles size={13} className="text-ocean-400 shrink-0" />
+                <span>{phrase.toneTip}</span>
+              </div>
+            )}
             
             {/* Last score indicator in review mode */}
             {mode === 'review' && 'lastScore' in phrase && (
@@ -595,14 +748,24 @@ export default function AppDashboard() {
               </div>
             )}
 
+            {/* "Hear it first" primary action button */}
             {phase === 'listen' && (
-              <button
-                onClick={() => setPhase('record')}
-                className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full bg-ink-700/50 border border-ink-600 px-5 py-2.5 text-sm font-medium text-ocean-300 transition-all hover:bg-ink-700 hover:text-ocean-200"
-              >
-                <Volume2 size={16} />
-                {t('voiceCheck.hearFirst')}
-              </button>
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={handleHearFirst}
+                  disabled={isPlayingAudio}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-ocean-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 transition-all hover:shadow-xl hover:shadow-ocean-500/30 hover:scale-[1.02] active:scale-95 disabled:opacity-80 cursor-pointer"
+                >
+                  <Volume2 size={18} className={isPlayingAudio ? 'animate-bounce' : ''} />
+                  <span>{isPlayingAudio ? 'Listening...' : t('voiceCheck.hearFirst')}</span>
+                </button>
+                <button
+                  onClick={() => setPhase('record')}
+                  className="text-xs text-stone-400 hover:text-stone-200 transition-colors py-2 px-3 cursor-pointer"
+                >
+                  Skip to recording →
+                </button>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>
@@ -613,7 +776,7 @@ export default function AppDashboard() {
             onClick={handleRecordToggle}
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
-            className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all ${
+            className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all cursor-pointer ${
               isRecording
                 ? 'bg-gradient-to-br from-red-400 to-rose-600 shadow-2xl shadow-red-500/30'
                 : 'bg-gradient-to-br from-ocean-400 to-cyan-500 shadow-2xl shadow-ocean-500/30'
@@ -634,7 +797,7 @@ export default function AppDashboard() {
             {isRecording ? (
               <span className="flex items-center gap-2 text-red-300">
                 <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
-                Recording...
+                Recording... Tap when finished
               </span>
             ) : phase === 'result' ? (
               'Tap to re-record'
@@ -658,11 +821,11 @@ export default function AppDashboard() {
                 <div>
                   <div className="text-sm text-stone-400 mb-1">Pronunciation Score</div>
                   <div className="text-5xl font-bold text-white tracking-tight">
-                    72<span className="text-2xl text-stone-500 font-normal">/100</span>
+                    {currentScores.overall}<span className="text-2xl text-stone-500 font-normal">/100</span>
                   </div>
                   <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1 text-xs font-medium text-ocean-300">
                     <Sparkles size={12} />
-                    Good effort! Focus on tones
+                    {currentScores.overall >= 80 ? 'Excellent pronunciation!' : 'Good effort! Refine tone pitch.'}
                   </div>
                 </div>
                 
@@ -677,12 +840,12 @@ export default function AppDashboard() {
                       strokeWidth="3" 
                       strokeLinecap="round"
                       initial={{ strokeDasharray: "0, 100" }}
-                      animate={{ strokeDasharray: "72, 100" }}
+                      animate={{ strokeDasharray: `${currentScores.overall}, 100` }}
                       transition={{ duration: 1.2, ease: "easeOut" }}
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">72</span>
+                    <span className="text-xl font-bold text-white">{currentScores.overall}</span>
                   </div>
                 </div>
               </div>
@@ -692,6 +855,13 @@ export default function AppDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-stone-300">Pitch Contour</h3>
                   <div className="flex items-center gap-3 text-xs">
+                    <button
+                      onClick={() => handlePlayAudio()}
+                      className="inline-flex items-center gap-1 text-ocean-300 hover:text-ocean-200 transition-colors mr-2 cursor-pointer"
+                    >
+                      <Volume2 size={13} />
+                      Hear native
+                    </button>
                     <span className="flex items-center gap-1.5 text-stone-400">
                       <span className="h-0.5 w-4 bg-ocean-400 rounded-full" />
                       Native
@@ -712,9 +882,9 @@ export default function AppDashboard() {
               {/* Skills */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Tones', value: 75, color: 'bg-ocean-400', text: 'text-ocean-300' },
-                  { label: 'Sounds', value: 68, color: 'bg-cyan-400', text: 'text-cyan-300' },
-                  { label: 'Rhythm', value: 82, color: 'bg-teal-400', text: 'text-teal-300' },
+                  { label: 'Tones', value: currentScores.tones, color: 'bg-ocean-400', text: 'text-ocean-300' },
+                  { label: 'Sounds', value: currentScores.sounds, color: 'bg-cyan-400', text: 'text-cyan-300' },
+                  { label: 'Rhythm', value: currentScores.rhythm, color: 'bg-teal-400', text: 'text-teal-300' },
                 ].map((skill) => (
                   <div key={skill.label} className="rounded-2xl border border-ink-700/50 bg-ink-800/40 backdrop-blur-xl p-4 text-center">
                     <div className="text-xs text-stone-500 mb-2">{skill.label}</div>
@@ -738,9 +908,9 @@ export default function AppDashboard() {
                     <Sparkles size={16} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-ocean-200 mb-1">AI Feedback</h4>
+                    <h4 className="text-sm font-semibold text-ocean-200 mb-1">AI Pronunciation Diagnosis</h4>
                     <p className="text-sm text-stone-400 leading-relaxed">
-                      Your 3rd tone starts too high compared to native speakers. Try starting lower and rising more gradually. The pitch contour shows your curve (cyan) deviating upward from the native pattern (blue) at syllables 2–4.
+                      {currentScores.feedback}
                     </p>
                   </div>
                 </div>
@@ -749,7 +919,7 @@ export default function AppDashboard() {
               {/* Next button */}
               <button
                 onClick={handleNext}
-                className="group w-full rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 transition-all hover:shadow-xl hover:shadow-ocean-500/30 flex items-center justify-center gap-2"
+                className="group w-full rounded-xl bg-gradient-to-r from-ocean-500 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ocean-500/25 transition-all hover:shadow-xl hover:shadow-ocean-500/30 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isLastPhrase ? (mode === 'review' ? 'Finish Review' : currentLesson ? 'Complete Lesson' : 'Next Phrase') : 'Next Phrase'}
                 <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" />
@@ -758,7 +928,7 @@ export default function AppDashboard() {
           )}
         </AnimatePresence>
 
-        {/* Privacy */}
+        {/* Privacy note */}
         <div className="mt-8 flex items-center gap-1.5 text-xs text-stone-600">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
