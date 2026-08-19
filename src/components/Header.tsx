@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User, Map } from 'lucide-react'
+import { Mic, Menu, X, Globe, ChevronDown, Sparkles, User, Map, Instagram } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 
@@ -11,11 +11,11 @@ const languages = [
 ]
 
 const navItems = [
-  { key: 'features', href: '#features' },
-  { key: 'practice', href: '#how-it-works' },
-  { key: 'tools', href: '#features' },
-  { key: 'hsk', href: '/path' },
-  { key: 'freeTest', href: '/app' },
+  { key: 'tools', label: 'Soundboard', href: '#tools' },
+  { key: 'practice', label: 'How It Works', href: '#how-it-works' },
+  { key: 'features', label: 'Features', href: '#features' },
+  { key: 'community', label: 'Tips & Blog', href: '#community' },
+  { key: 'hsk', label: 'Lessons', href: '/path' },
 ]
 
 export default function Header() {
@@ -78,19 +78,31 @@ export default function Header() {
               onClick={() => handleNavClick(item.href)}
               className="relative rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60 cursor-pointer"
             >
-              {t(`header.${item.key}`)}
+              {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-2.5 md:flex">
+          {/* Instagram direct icon */}
+          <a
+            href="https://instagram.com/linguatone"
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-500 transition-all hover:bg-pink-50 hover:text-pink-600 cursor-pointer"
+            title="Follow on Instagram"
+          >
+            <Instagram size={18} />
+          </a>
+
+          {/* Language Selector */}
           <div className="relative" ref={langRef}>
             <button
               onClick={() => setLangOpen(!langOpen)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60 cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-stone-500 transition-all hover:text-ocean-600 hover:bg-ocean-50/60 cursor-pointer"
             >
               <Globe size={14} />
-              {languages.find((l) => l.code === i18n.language)?.label || 'English'}
+              {languages.find((l) => l.code === i18n.language)?.flag || '🇺🇸'}
               <ChevronDown size={12} className={`transition-transform duration-200 ${langOpen ? 'rotate-180' : ''}`} />
             </button>
             <AnimatePresence>
@@ -100,7 +112,7 @@ export default function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.95 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-2 w-44 overflow-hidden rounded-2xl border border-ocean-100 bg-white shadow-xl shadow-ocean-900/10"
+                  className="absolute right-0 mt-2 w-40 overflow-hidden rounded-2xl border border-ocean-100 bg-white shadow-xl shadow-ocean-900/10"
                 >
                   {languages.map((lang) => (
                     <button
@@ -143,7 +155,7 @@ export default function Header() {
 
           <button
             onClick={() => navigate('/app')}
-            className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/30 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-ocean-450 to-cyan-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-ocean-400/25 transition-all hover:shadow-xl hover:shadow-ocean-400/30 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
             <Mic size={14} strokeWidth={2.5} />
             {t('header.openApp')}
@@ -174,9 +186,20 @@ export default function Header() {
                   onClick={() => handleNavClick(item.href)}
                   className="block w-full text-left rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-ocean-50 hover:text-ocean-600 cursor-pointer"
                 >
-                  {t(`header.${item.key}`)}
+                  {item.label}
                 </button>
               ))}
+
+              <a
+                href="https://instagram.com/linguatone"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-pink-600 hover:bg-pink-50 transition-colors cursor-pointer"
+              >
+                <Instagram size={16} />
+                Instagram @LinguaTone
+              </a>
+
               <div className="my-2 border-t border-ocean-100 pt-2">
                 {languages.map((lang) => (
                   <button

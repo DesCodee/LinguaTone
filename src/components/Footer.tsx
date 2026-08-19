@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mic, Heart, Github, Twitter, Shield, FileText, X } from 'lucide-react'
+import { Mic, Heart, Github, Twitter, Shield, FileText, X, Instagram } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export default function Footer() {
@@ -36,6 +36,15 @@ export default function Footer() {
           </div>
 
           <div className="flex items-center gap-4">
+            <a 
+              href="https://instagram.com/linguatone" 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-stone-400 transition-colors hover:text-pink-500"
+              title="Instagram @LinguaTone"
+            >
+              <Instagram size={18} />
+            </a>
             <a 
               href="https://github.com/DesCodee/LinguaTone" 
               target="_blank" 
@@ -74,7 +83,7 @@ export default function Footer() {
             >
               <button
                 onClick={() => setLegalModal(null)}
-                className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 transition-colors"
+                className="absolute top-4 right-4 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -119,7 +128,7 @@ export default function Footer() {
 
               <button
                 onClick={() => setLegalModal(null)}
-                className="mt-6 w-full rounded-xl bg-ocean-500 py-2.5 text-xs font-semibold text-white hover:bg-ocean-600 transition-colors"
+                className="mt-6 w-full rounded-xl bg-ocean-500 py-2.5 text-xs font-semibold text-white hover:bg-ocean-600 transition-colors cursor-pointer"
               >
                 Close
               </button>
