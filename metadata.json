@@ -1,0 +1,6 @@
+{
+  "name": "LinguaTone",
+  "description": "Master Chinese, Japanese, and Korean pronunciation with interactive pitch contours, voice checks, and structured learning paths.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

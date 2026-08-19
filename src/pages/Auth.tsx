@@ -47,7 +47,7 @@ export default function Auth() {
       >
         <div className="text-center mb-8">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-ocean-400 to-cyan-500 mb-4">
-            <LogIn size={20} className="text-white" />
+            {isLogin ? <LogIn size={20} className="text-white" /> : <UserPlus size={20} className="text-white" />}
           </div>
           <h1 className="text-2xl font-bold text-white">
             {isLogin ? 'Welcome back' : 'Create account'}

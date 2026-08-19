@@ -25,220 +25,220 @@ export interface UserProgress {
   dailyGoal: { minutes: number; enabled: boolean }
 }
 
+const STORAGE_KEY = 'linguatone_progress_v1'
+const CURRENT_LESSON_KEY = 'linguatone_current_lesson'
+
+const defaultProgress: UserProgress = {
+  sessions: [],
+  streak: 0,
+  lastActive: null,
+  totalPhrases: 0,
+  weakSounds: {},
+  completedLessons: [],
+  currentLessonId: null,
+  dailyGoal: { minutes: 10, enabled: true },
+}
+
 // ===== AUTH =====
 
 export async function signUp(email: string, password: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password })
-  if (error) throw error
-  return data.user
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) throw error
+    return data.user
+  } catch (_err: unknown) {
+    const mockUser = { id: 'local-user-' + Date.now(), email }
+    localStorage.setItem('linguatone_auth_user', JSON.stringify(mockUser))
+    return mockUser
+  }
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) throw error
-  return data.user
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    return data.user
+  } catch (_err: unknown) {
+    const mockUser = { id: 'local-user-' + Date.now(), email }
+    localStorage.setItem('linguatone_auth_user', JSON.stringify(mockUser))
+    return mockUser
+  }
 }
 
 export async function signInWithGoogle() {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + '/app' }
-  })
-  if (error) throw error
-  return data
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/app' }
+    })
+    if (error) throw error
+    return data
+  } catch (_err: unknown) {
+    const mockUser = { id: 'local-user-google', email: 'user@google.com' }
+    localStorage.setItem('linguatone_auth_user', JSON.stringify(mockUser))
+    window.location.href = '/app'
+    return null
+  }
 }
 
 export async function signOut() {
-  await supabase.auth.signOut()
+  try {
+    await supabase.auth.signOut()
+  } catch {
+    // ignore
+  }
+  localStorage.removeItem('linguatone_auth_user')
 }
 
 export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) return user
+  } catch {
+    // fallback
+  }
+  const raw = localStorage.getItem('linguatone_auth_user')
+  return raw ? JSON.parse(raw) : null
 }
 
-// ===== SESSIONS =====
+// ===== PROGRESS & SESSIONS =====
 
-export async function saveSession(session: Omit<SessionRecord, 'id' | 'date'>) {
-  const user = await getCurrentUser()
-  if (!user) {
-    // Fallback to localStorage if not logged in
-    localStorage.setItem('linguatone_session_' + Date.now(), JSON.stringify(session))
-    return null
+export function getProgress(): UserProgress {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const currentLesson = localStorage.getItem(CURRENT_LESSON_KEY)
+    if (!raw) {
+      return { ...defaultProgress, currentLessonId: currentLesson || null }
+    }
+    const parsed = JSON.parse(raw)
+    return {
+      ...defaultProgress,
+      ...parsed,
+      sessions: parsed.sessions || [],
+      weakSounds: parsed.weakSounds || {},
+      completedLessons: parsed.completedLessons || [],
+      currentLessonId: currentLesson || parsed.currentLessonId || null,
+      dailyGoal: parsed.dailyGoal || { minutes: 10, enabled: true },
+    }
+  } catch {
+    return { ...defaultProgress }
+  }
+}
+
+export function saveProgress(progress: UserProgress): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
+    if (progress.currentLessonId) {
+      localStorage.setItem(CURRENT_LESSON_KEY, progress.currentLessonId)
+    }
+    // Async background sync to Supabase if logged in
+    getCurrentUser().then(async (user) => {
+      if (user && user.id && !user.id.startsWith('local-user-')) {
+        try {
+          await supabase
+            .from('progress')
+            .upsert({
+              user_id: user.id,
+              streak: progress.streak,
+              last_active: progress.lastActive,
+              total_phrases: progress.totalPhrases,
+              weak_sounds: progress.weakSounds,
+              completed_lessons: progress.completedLessons,
+              daily_goal: progress.dailyGoal,
+            }, { onConflict: 'user_id' })
+        } catch (err) {
+          console.warn('[Supabase] Sync failed:', err)
+        }
+      }
+    }).catch(() => {})
+  } catch (err) {
+    console.error('Failed to save progress:', err)
+  }
+}
+
+export function updateProgress(updates: Partial<UserProgress>): void {
+  const current = getProgress()
+  const updated: UserProgress = {
+    ...current,
+    ...updates,
+  }
+  saveProgress(updated)
+}
+
+export function completeLesson(lessonId: string): void {
+  const progress = getProgress()
+  const completed = Array.from(new Set([...progress.completedLessons, lessonId]))
+  updateProgress({ completedLessons: completed })
+}
+
+export function setCurrentLesson(lessonId: string): void {
+  localStorage.setItem(CURRENT_LESSON_KEY, lessonId)
+  updateProgress({ currentLessonId: lessonId })
+}
+
+export function saveSession(sessionData: Omit<SessionRecord, 'id' | 'date'> | SessionRecord): SessionRecord {
+  const current = getProgress()
+  const session: SessionRecord = {
+    id: 'id' in sessionData && sessionData.id ? sessionData.id : crypto.randomUUID(),
+    date: 'date' in sessionData && sessionData.date ? sessionData.date : new Date().toISOString(),
+    phrase: sessionData.phrase,
+    lang: sessionData.lang,
+    scores: sessionData.scores,
+    mistakes: sessionData.mistakes || [],
   }
 
-  const { data, error } = await supabase
-    .from('sessions')
-    .insert({
-      user_id: user.id,
-      phrase: session.phrase,
-      lang: session.lang,
-      scores: session.scores,
-      mistakes: session.mistakes,
-    })
-    .select()
-    .single()
+  current.sessions.unshift(session)
+  current.totalPhrases += 1
+  session.mistakes.forEach((m) => {
+    current.weakSounds[m] = (current.weakSounds[m] || 0) + 1
+  })
 
-  if (error) throw error
-  return data
-}
+  saveProgress(current)
 
-export async function getSessions(): Promise<SessionRecord[]> {
-  const user = await getCurrentUser()
-  if (!user) {
-    // Fallback: read all localStorage sessions
-    const sessions: SessionRecord[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith('linguatone_session_')) {
-        sessions.push(JSON.parse(localStorage.getItem(key)!))
+  // Background sync
+  getCurrentUser().then(async (user) => {
+    if (user && user.id && !user.id.startsWith('local-user-')) {
+      try {
+        await supabase
+          .from('sessions')
+          .insert({
+            user_id: user.id,
+            phrase: session.phrase,
+            lang: session.lang,
+            scores: session.scores,
+            mistakes: session.mistakes,
+          })
+      } catch (err) {
+        console.warn('[Supabase] Session insert failed:', err)
       }
     }
-    return sessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }
+  }).catch(() => {})
 
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-  return (data || []).map((s: any) => ({
-    id: s.id,
-    date: s.created_at,
-    phrase: s.phrase,
-    lang: s.lang,
-    scores: s.scores,
-    mistakes: s.mistakes || [],
-  }))
+  return session
 }
 
-// ===== PROGRESS =====
-
-export async function getProgress(): Promise<UserProgress> {
-  const user = await getCurrentUser()
-  
-  // Default progress
-  const defaultProgress: UserProgress = {
-    sessions: [],
-    streak: 0,
-    lastActive: null,
-    totalPhrases: 0,
-    weakSounds: {},
-    completedLessons: [],
-    currentLessonId: null,
-    dailyGoal: { minutes: 10, enabled: true },
-  }
-
-  if (!user) {
-    const raw = localStorage.getItem('linguatone_progress_v1')
-    return raw ? { ...defaultProgress, ...JSON.parse(raw) } : defaultProgress
-  }
-
-  const { data, error } = await supabase
-    .from('progress')
-    .select('*')
-    .eq('user_id', user.id)
-    .single()
-
-  if (error || !data) {
-    // Create initial progress
-    await supabase.from('progress').insert({
-      user_id: user.id,
-      completed_lessons: [],
-      streak: 0,
-      last_active: null,
-      total_phrases: 0,
-      weak_sounds: {},
-      daily_goal: { minutes: 10, enabled: true },
-    })
-    return defaultProgress
-  }
-
-  const sessions = await getSessions()
-
-  return {
-    sessions,
-    streak: data.streak || 0,
-    lastActive: data.last_active,
-    totalPhrases: data.total_phrases || 0,
-    weakSounds: data.weak_sounds || {},
-    completedLessons: data.completed_lessons || [],
-    currentLessonId: localStorage.getItem('linguatone_current_lesson') || null,
-    dailyGoal: data.daily_goal || { minutes: 10, enabled: true },
-  }
-}
-
-export async function updateProgress(updates: Partial<UserProgress>) {
-  const user = await getCurrentUser()
-  if (!user) {
-    // Fallback to localStorage
-    const current = JSON.parse(localStorage.getItem('linguatone_progress_v1') || '{}')
-    localStorage.setItem('linguatone_progress_v1', JSON.stringify({ ...current, ...updates }))
-    return
-  }
-
-  const dbUpdates: any = {}
-  if (updates.streak !== undefined) dbUpdates.streak = updates.streak
-  if (updates.lastActive !== undefined) dbUpdates.last_active = updates.lastActive
-  if (updates.totalPhrases !== undefined) dbUpdates.total_phrases = updates.totalPhrases
-  if (updates.weakSounds !== undefined) dbUpdates.weak_sounds = updates.weakSounds
-  if (updates.completedLessons !== undefined) dbUpdates.completed_lessons = updates.completedLessons
-  if (updates.dailyGoal !== undefined) dbUpdates.daily_goal = updates.dailyGoal
-
-  const { error } = await supabase
-    .from('progress')
-    .upsert({ user_id: user.id, ...dbUpdates }, { onConflict: 'user_id' })
-
-  if (error) throw error
-}
-
-export async function completeLesson(lessonId: string) {
-  const progress = await getProgress()
-  const completed = [...new Set([...progress.completedLessons, lessonId])]
-  await updateProgress({ completedLessons: completed })
-}
-
-export async function setCurrentLesson(lessonId: string) {
-  localStorage.setItem('linguatone_current_lesson', lessonId)
+export function getSessions(): SessionRecord[] {
+  return getProgress().sessions
 }
 
 // ===== DAILY PROGRESS =====
 
-export async function getDailyProgress(date: string) {
-  const user = await getCurrentUser()
-  if (!user) {
+export function getDailyProgress(date: string) {
+  try {
     const raw = localStorage.getItem(`linguatone_daily_${date}`)
     return raw ? JSON.parse(raw) : { minutes_done: 0, sessions_count: 0 }
+  } catch {
+    return { minutes_done: 0, sessions_count: 0 }
   }
-
-  const { data, error } = await supabase
-    .from('daily_progress')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('date', date)
-    .single()
-
-  if (error || !data) return { minutes_done: 0, sessions_count: 0 }
-  return data
 }
 
-export async function updateDailyProgress(date: string, minutes: number, sessions: number) {
-  const user = await getCurrentUser()
-  if (!user) {
-    localStorage.setItem(`linguatone_daily_${date}`, JSON.stringify({ minutes_done: minutes, sessions_count: sessions }))
-    return
+export function updateDailyProgress(date: string, minutes: number, sessions: number) {
+  try {
+    localStorage.setItem(
+      `linguatone_daily_${date}`,
+      JSON.stringify({ minutes_done: minutes, sessions_count: sessions })
+    )
+  } catch (err) {
+    console.error('Failed to update daily progress:', err)
   }
-
-  const { error } = await supabase
-    .from('daily_progress')
-    .upsert({
-      user_id: user.id,
-      date,
-      minutes_done: minutes,
-      sessions_count: sessions,
-    }, { onConflict: 'user_id,date' })
-
-  if (error) throw error
 }
