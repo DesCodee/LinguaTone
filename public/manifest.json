@@ -1,16 +1,28 @@
 {
-  "name": "LinguaTone — CJK Pronunciation",
   "short_name": "LinguaTone",
-  "description": "Master Mandarin Chinese tones, Japanese pitch accent, and Korean pronunciation with interactive voice checks.",
-  "start_url": "/app",
-  "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#0284c7",
+  "name": "LinguaTone — AI CJK Pronunciation & Tone Coach",
+  "description": "Master Mandarin Chinese tones, Japanese pitch accent, and Korean pronunciation with instant voice pitch contours and feedback.",
   "icons": [
     {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
       "src": "/vite.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "sizes": "any"
     }
-  ]
+  ],
+  "start_url": "/app",
+  "background_color": "#060913",
+  "theme_color": "#0284c7",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
 }

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { 
   Mic, Volume2, ArrowLeft, RotateCcw, Sparkles, ChevronRight, 
-  Flame, BookOpen, Target, TrendingUp, Trophy, Bell
+  Flame, BookOpen, Target, TrendingUp, Trophy, Bell, Crown, Download
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
@@ -12,11 +12,14 @@ import { useProgress } from '../hooks/useProgress'
 import { useLessons } from '../hooks/useLessons'
 import { useReview } from '../hooks/useReview'
 import { useDailyGoal } from '../hooks/useDailyGoal'
+import { useProStatus } from '../hooks/useProStatus'
 import { lessons, getLessonsByLang } from '../data/lessons'
 import { requestNotificationPermission } from '../lib/notifications'
 import { speakText, stopSpeech, playSuccessChime } from '../lib/speech'
 import { evaluatePronunciation, getNativePitchContour, PitchPoint } from '../lib/audioAnalysis'
 import DailyGoalSetup from '../components/DailyGoalSetup'
+import { AiCustomPhraseModal } from '../components/AiCustomPhraseModal'
+import { CheckoutModal } from '../components/CheckoutModal'
 
 // ===== Confetti particles =====
 function Confetti() {
@@ -105,11 +108,28 @@ export default function AppDashboard() {
   const [phase, setPhase] = useState<'listen' | 'record' | 'result'>('listen')
   const [selectedLang, setSelectedLang] = useState('zh')
   const [showComplete, setShowComplete] = useState(false)
-  const [mode, setMode] = useState<'lesson' | 'review'>('lesson')
+  const [mode, setMode] = useState<'lesson' | 'review' | 'custom'>('lesson')
   const [showConfetti, setShowConfetti] = useState(false)
   const [notifEnabled, setNotifEnabled] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [playbackRate, setPlaybackRate] = useState<number>(0.85)
+  const [showAiModal, setShowAiModal] = useState(false)
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  const [customPhrase, setCustomPhrase] = useState<{
+    id: string;
+    text: string;
+    pinyin?: string;
+    romaji?: string;
+    translation: string;
+    lang: string;
+    tones?: number[];
+  } | null>(null)
+
+  const { isPro, canUseAi, remainingFreeAi, activatePro, recordAiUsage } = useProStatus()
+
   const [currentScores, setCurrentScores] = useState({
     tones: 85,
     sounds: 80,
@@ -148,15 +168,46 @@ export default function AppDashboard() {
     }
   }, [isGoalReached, showSetup])
 
+  // Listen for PWA beforeinstallprompt event
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false);
+    }
+    setDeferredPrompt(null);
+  };
+
   const currentLesson = useMemo(() => {
+    if (mode === 'custom') return null
     if (!currentLessonId) {
       const langLessons = getLessonsByLang(selectedLang)
       return langLessons[0] || null
     }
     return lessons.find((l) => l.id === currentLessonId) || null
-  }, [currentLessonId, selectedLang])
+  }, [currentLessonId, selectedLang, mode])
 
   const phrases = useMemo(() => {
+    if (mode === 'custom' && customPhrase) {
+      return [{
+        text: customPhrase.text,
+        pinyin: customPhrase.pinyin || customPhrase.romaji,
+        translation: customPhrase.translation,
+        lang: customPhrase.lang,
+        toneTip: 'AI Custom contour analysis ready'
+      }]
+    }
     if (mode === 'review' && reviewItems.length > 0) {
       return reviewItems.map((r) => {
         let pinyin = ''
@@ -176,7 +227,7 @@ export default function AppDashboard() {
     }
     if (currentLesson) return currentLesson.phrases.map((p) => ({ ...p, lang: currentLesson.lang }))
     return samplePhrases
-  }, [mode, reviewItems, currentLesson])
+  }, [mode, customPhrase, reviewItems, currentLesson])
 
   const phrase = phrases[currentPhraseIdx]
 
@@ -420,16 +471,46 @@ export default function AppDashboard() {
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-sm font-semibold text-white">
-              {mode === 'review' ? 'Mistake Review' : currentLesson ? currentLesson.title : 'Voice Check'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-semibold text-white">
+                {mode === 'custom' ? 'AI Voice Studio' : mode === 'review' ? 'Mistake Review' : currentLesson ? currentLesson.title : 'Voice Check'}
+              </h1>
+              {mode === 'custom' && (
+                <span className="bg-ocean-500/20 text-ocean-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-ocean-500/30">
+                  Custom AI
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-stone-400">
-              {mode === 'review' ? 'Targeted accent correction' : currentLesson ? currentLesson.description : 'Pronunciation & tone analysis'}
+              {mode === 'custom' ? 'Custom text & pitch analysis' : mode === 'review' ? 'Targeted accent correction' : currentLesson ? currentLesson.description : 'Pronunciation & tone analysis'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI Custom Studio Button */}
+          <button
+            onClick={() => setShowAiModal(true)}
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-ocean-500/20 to-cyan-500/20 hover:from-ocean-500/30 hover:to-cyan-500/30 border border-ocean-500/40 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition-all cursor-pointer shadow-sm"
+            title="Custom AI Phrase & Roleplay Studio"
+          >
+            <Sparkles size={13} className="text-cyan-400" />
+            <span>AI Studio</span>
+          </button>
+
+          {/* PRO Badge / Upgrade Button */}
+          <button
+            onClick={() => setShowCheckoutModal(true)}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+              isPro
+                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+                : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-500/20 hover:shadow-amber-500/30'
+            }`}
+          >
+            <Crown size={13} className={isPro ? 'text-amber-400' : 'text-white'} />
+            <span className="hidden sm:inline">{isPro ? 'PRO Active' : 'Upgrade PRO'}</span>
+          </button>
+
           {/* Daily streak indicator */}
           <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-xs text-amber-400">
             <Flame size={14} className="fill-amber-400" />
@@ -483,13 +564,13 @@ export default function AppDashboard() {
               <span className="bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full text-[10px]">{reviewItems.length}</span>
             </button>
           )}
-          {mode === 'review' && (
+          {mode !== 'lesson' && (
             <button
               onClick={startLesson}
               className="flex items-center gap-1.5 rounded-full bg-ocean-500/10 border border-ocean-500/20 px-3 py-1.5 text-xs font-medium text-ocean-300 transition-all hover:bg-ocean-500/20 cursor-pointer"
             >
               <BookOpen size={14} />
-              <span className="hidden sm:inline">Lesson</span>
+              <span className="hidden sm:inline">Lessons</span>
             </button>
           )}
           <button
@@ -513,6 +594,37 @@ export default function AppDashboard() {
           </button>
         </div>
       </div>
+
+      {/* PWA Install Banner */}
+      <AnimatePresence>
+        {showInstallBanner && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-gradient-to-r from-ocean-600/30 via-cyan-600/20 to-ocean-600/30 border-b border-ocean-500/30 px-4 py-2.5 text-xs flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2 text-stone-200">
+              <Download size={15} className="text-cyan-400 shrink-0" />
+              <span>Install LinguaTone on your device for instant offline practice</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleInstallPWA}
+                className="bg-ocean-500 hover:bg-ocean-400 text-white font-semibold px-3 py-1 rounded-lg text-xs transition-colors"
+              >
+                Install App
+              </button>
+              <button
+                onClick={() => setShowInstallBanner(false)}
+                className="text-stone-400 hover:text-white text-xs px-1.5"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="relative mx-auto flex max-w-2xl flex-col items-center px-4 py-8 md:py-12">
         {/* Daily Goal Progress */}
@@ -940,6 +1052,37 @@ export default function AppDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* AI Custom Phrase & Roleplay Modal */}
+      <AiCustomPhraseModal
+        open={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        currentLang={selectedLang}
+        isPro={isPro}
+        canUseAi={canUseAi}
+        remainingFreeAi={remainingFreeAi}
+        onOpenPro={() => {
+          setShowAiModal(false)
+          setShowCheckoutModal(true)
+        }}
+        onRecordAiUsage={recordAiUsage}
+        onSelectPhrase={(custom) => {
+          setCustomPhrase(custom)
+          setSelectedLang(custom.lang)
+          setMode('custom')
+          setCurrentPhraseIdx(0)
+          setPhase('listen')
+        }}
+      />
+
+      {/* Checkout PRO Modal */}
+      <CheckoutModal
+        open={showCheckoutModal}
+        onClose={() => setShowCheckoutModal(false)}
+        onSuccess={() => {
+          activatePro()
+        }}
+      />
     </div>
   )
 }
